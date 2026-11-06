@@ -3,6 +3,7 @@ import vm from 'node:vm';
 import {readFileSync} from 'node:fs';
 const ctx={location:{hash:'',replace(hash){this.hash=hash;}}};
 vm.createContext(ctx);
+vm.runInContext(readFileSync(new URL('../static/overview.js',import.meta.url),'utf8'),ctx);
 vm.runInContext(readFileSync(new URL('../static/company-context.js',import.meta.url),'utf8'),ctx);
 vm.runInContext(readFileSync(new URL('../static/app.js',import.meta.url),'utf8').split("$('#quit').onclick")[0],ctx);
 vm.runInContext("render=()=>{};state={invoices:[{id:10,kind:'purchase',status:'draft'},{id:11,kind:'purchase',status:'issued'}]}",ctx);

@@ -225,3 +225,27 @@ dialog.attachment-review{width:1100px}.attachment-layout{display:grid;grid-templ
 dialog button[hidden]{display:none}
 #company-context{padding:12px 0;border-top:1px solid #e5e5e5;margin-bottom:8px}#company-context label{display:block;color:#777;font-size:10px;font-weight:600;margin:0 0 6px}#company-context select{width:100%;font-size:12px;min-height:36px;background-color:#fff}.company-usage{margin:12px 0;font-size:12px}.company-usage .hint{margin-top:8px}@media(max-width:720px){.sidebar-bottom{display:block;margin-top:10px}#company-context{border-top:0;padding:0;max-width:280px}.sidebar-bottom #quit{display:none}}
 .overview-filters .field:first-child{width:110px}.overview-filters .field:nth-child(2){width:160px}
+.overview-stats{grid-template-columns:repeat(4,minmax(0,1fr))}
+.overview-stats .stat>span{display:block}
+.overview-stat-action{display:block;text-align:left;border:0;border-radius:0;background:#fff;color:#171717;font-weight:400}
+.overview-stat-action:hover{background:#f5f5f5}
+.overview-stat-action:disabled{opacity:1;cursor:default;background:#fff}
+.overview-main{display:grid;grid-template-columns:minmax(0,1.8fr) minmax(290px,1fr);gap:16px}
+.overview-main>.card{min-width:0}
+.overview-chart .cash-chart{max-height:210px}
+.overview-attention{padding:0;overflow:hidden}
+.overview-attention>button{display:flex;justify-content:space-between;gap:12px;width:100%;padding:11px 14px;background:#fff;color:#171717;border:0;border-top:1px solid #eee;border-radius:0;text-align:left;font-size:12px;font-weight:500}
+.overview-attention>button>span:first-child{flex:1}
+.overview-attention>button small{display:block;color:#737373;font-size:10px;font-weight:400}
+.overview-attention>button b{font-size:18px;font-weight:600;font-variant-numeric:tabular-nums}
+.overview-attention>button:hover{background:#f5f5f5}
+.overview-attention>button:disabled{opacity:1;cursor:default;color:#737373;background:#fff}
+.overview-attention>button:disabled>span:last-child{visibility:hidden}
+.overview-attention-clear{padding:10px 14px;margin:0;border-top:1px solid #eee}
+.overview-customer-link{display:inline;padding:0;min-height:0;background:none;border:0;border-radius:0;color:#171717;text-align:left;font-size:inherit;line-height:inherit}
+.overview-customer-link:hover{background:none;text-decoration:underline}
+.overview-drill{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px;padding:10px 14px;background:#f2f2f2;border:1px solid #ddd;border-radius:4px;font-size:12px}
+.overview-definitions{font-size:10px;max-width:1000px}
+@media(max-width:1100px){.overview-main{grid-template-columns:minmax(0,1fr)}.overview-breakdowns{grid-template-columns:repeat(2,minmax(0,1fr))}.overview-filters p{flex-basis:auto;margin:0 0 8px auto}}
+@media(max-width:850px){.overview-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.overview-stats .stat:nth-child(2){border-right:0}.overview-stats .stat:nth-child(-n+2){border-bottom:1px solid #e5e5e5}.overview-breakdowns{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:720px){.overview-stats .stat{border-right:1px solid #e5e5e5}.overview-stats .stat:nth-child(n+3){border-bottom:0}.overview-filters .field:first-child{flex-basis:auto}.overview-drill{align-items:flex-start;flex-direction:column}}
