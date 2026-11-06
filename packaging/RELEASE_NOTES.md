@@ -1,5 +1,7 @@
 LocalBooks puts invoices, receipts, expenses and accountant-ready records on your MacBook. Built for Thai and expat SME owners and managers. Free, open source and MIT licensed.
 
+[**Download LocalBooks for Mac — no Terminal needed**](https://github.com/cenkcetin96/localbooks/releases/download/v1.1.0/LocalBooks-1.1.0-macOS-AppleSilicon.dmg)
+
 ### Download and install — no Terminal needed
 
 1. Download **LocalBooks-1.1.0-macOS-AppleSilicon.dmg** below. Requires an Apple Silicon Mac (M1 or newer) running **macOS 15 Sequoia or later**. Check **Apple menu → About This Mac**.
@@ -19,4 +21,4 @@ LocalBooks helps organize business compliance preparation; your accountant confi
 
 By [Cenk Cetin](https://cenkcetin.com) · [FGC](https://fgc.co.th)
 
-**Other downloads:** `SHA256SUMS.txt` contains file checksums. The third-party sources ZIP contains the exact upstream sources and build recipes for bundled open-source tools; it is for developers and license compliance, and is not needed to install the app.
+**Other downloads:** `SHA256SUMS.txt` contains file checksums. The two sources ZIP files contain upstream sources and build recipes for bundled open-source tools, Chromium and FFmpeg. They are for developers and license compliance; you do not need them to install the app.

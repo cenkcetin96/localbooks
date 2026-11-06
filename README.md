@@ -8,11 +8,13 @@ Created by [Cenk Cetin](https://cenkcetin.com), with links to [FGC](https://fgc.
 
 ## Download and start — no coding needed
 
-[**Download LocalBooks for Mac**](https://github.com/cenkcetin96/localbooks/releases/latest)
+[**Download LocalBooks for Mac — no Terminal needed**](https://github.com/cenkcetin96/localbooks/releases/download/v1.1.0/LocalBooks-1.1.0-macOS-AppleSilicon.dmg)
+
+[Release notes and other downloads](https://github.com/cenkcetin96/localbooks/releases/latest)
 
 For **Apple Silicon Macs (M1 or newer), macOS 15 Sequoia or later**. Check **Apple menu → About This Mac** if you are unsure. The download includes everything needed for PDF export and Thai/English scanning. No Terminal, Homebrew, Python or Chrome installation is needed.
 
-1. On the download page, click **LocalBooks-1.1.0-macOS-AppleSilicon.dmg** under **Assets**.
+1. Click **Download LocalBooks for Mac** above to save the disk image.
 2. Open the downloaded file and drag **LocalBooks** onto **Applications**.
 3. Open **Applications → LocalBooks**.
 4. If macOS blocks the app, choose **Done**, then **System Settings → Privacy & Security → Open Anyway**, and confirm **Open**. This community build is not Apple notarized. [Apple’s step-by-step instructions](https://support.apple.com/en-us/102445).
