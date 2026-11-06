@@ -76,7 +76,14 @@ final class LocalBooksApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
         return false
     }
 
+    var bundledBackend: URL? {
+        guard let executable = Bundle.main.resourceURL?.appendingPathComponent("backend/LocalBooksBackend"),
+              fm.isExecutableFile(atPath: executable.path) else { return nil }
+        return executable
+    }
+
     func installRuntime() throws {
+        if bundledBackend != nil { return }
         guard let bundled = Bundle.main.resourceURL?.appendingPathComponent("runtime"),
               let files = fm.enumerator(at: bundled, includingPropertiesForKeys: [.isDirectoryKey]) else {
             throw NSError(domain: "LocalBooks", code: 1, userInfo: [NSLocalizedDescriptionKey: "The bundled runtime is missing."])
@@ -99,8 +106,8 @@ final class LocalBooksApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
         let handle = try FileHandle(forWritingTo: log)
         try handle.seekToEnd()
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/opt/homebrew/bin/python3.11")
-        process.arguments = [runtime.appendingPathComponent("app.py").path, "--data", data.path]
+        process.executableURL = bundledBackend ?? URL(fileURLWithPath: "/opt/homebrew/bin/python3.11")
+        process.arguments = (bundledBackend == nil ? [runtime.appendingPathComponent("app.py").path] : []) + ["--data", data.path]
         process.currentDirectoryURL = runtime
         process.standardInput = FileHandle.nullDevice
         process.standardOutput = handle

@@ -11,7 +11,8 @@ import tempfile
 ROOT=Path(__file__).resolve().parent
 SYMBOLS={'THB':'฿','USD':'$','EUR':'€','GBP':'£','SGD':'S$','AUD':'A$','CAD':'C$','JPY':'¥','KWD':'KWD '}
 PLACES={'JPY':0,'KWD':3}
-CHROME='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+from local_tools import tool, browser
+CHROME=browser()
 
 def e(value):return escape(str(value or ''),quote=True)
 def money(minor,currency):
@@ -155,8 +156,9 @@ def make_pdf(html):
     if not Path(CHROME).exists():raise RuntimeError('Google Chrome is required for PDF export on this Mac.')
     with tempfile.TemporaryDirectory(prefix='localbooks-pdf-') as directory:
         tmp=Path(directory);source=tmp/'document.html';output=tmp/'document.pdf';source.write_text(html)
-        cmd=['/opt/homebrew/bin/node',str(ROOT/'pdf.mjs'),str(source),str(output),str(tmp/'profile')]
-        proc=subprocess.run(cmd,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=45)
+        cmd=[tool('node'),str(ROOT/'pdf.mjs'),str(source),str(output),str(tmp/'profile')]
+        import os
+        proc=subprocess.run(cmd,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=45,env=dict(os.environ, LOCALBOOKS_CHROME=CHROME))
         if proc.returncode!=0 or not output.exists() or not output.read_bytes().startswith(b'%PDF'):
             error=proc.stderr.decode(errors='replace').strip()[:200]
             raise RuntimeError('PDF generation failed. Nothing was issued. '+error)
@@ -167,5 +169,5 @@ def make_pdf(html):
         return output.read_bytes()
 
 def shutil_which(name):
-    import shutil
-    return shutil.which(name) or (f'/opt/homebrew/bin/{name}' if Path(f'/opt/homebrew/bin/{name}').exists() else None)
+    path=tool(name)
+    return path if Path(path).is_file() else None

@@ -4,33 +4,27 @@ Local invoices, receipts, expenses and accountant handoff for Thai and expat SME
 
 **MIT licensed · Local storage · English interface · English/Thai documents and OCR**
 
-Created by [Cenk Cetin](https://cenkcetin.com), with links to [FGC](https://fgc.co.th). This public source edition starts with an empty database; all company, customer and bank details are entered by you.
+Created by [Cenk Cetin](https://cenkcetin.com), with links to [FGC](https://fgc.co.th). A new installation starts with an empty database; all company, customer and bank details are entered by you.
 
-## Quick start on a MacBook
+## Download and start — no coding needed
 
-The desktop build currently targets **Apple Silicon Macs** with Homebrew at `/opt/homebrew`. It needs Python 3.11, Node.js, Google Chrome, Poppler, Tesseract and Apple's command-line developer tools. Intel Macs require adjusting the hardcoded Homebrew paths in `launcher.swift`, `documents.py` and `scan.py`. There is no prebuilt app in this source release.
+[**Download LocalBooks for Mac**](https://github.com/cenkcetin96/localbooks/releases/latest)
 
-Install [Homebrew](https://brew.sh) if needed, then run:
+For **Apple Silicon Macs (M1 or newer), macOS 15 Sequoia or later**. Check **Apple menu → About This Mac** if you are unsure. The download includes everything needed for PDF export and Thai/English scanning. No Terminal, Homebrew, Python or Chrome installation is needed.
 
-```sh
-xcode-select --install
-brew install python@3.11 node poppler tesseract
-brew install --cask google-chrome
-git clone https://github.com/cenkcetin96/localbooks.git
-cd localbooks
-./build_app.sh
-open LocalBooks.app
-```
+1. On the download page, click **LocalBooks-1.1.0-macOS-AppleSilicon.dmg** under **Assets**.
+2. Open the downloaded file and drag **LocalBooks** onto **Applications**.
+3. Open **Applications → LocalBooks**.
+4. If macOS blocks the app, choose **Done**, then **System Settings → Privacy & Security → Open Anyway**, and confirm **Open**. This community build is not Apple notarized. [Apple’s step-by-step instructions](https://support.apple.com/en-us/102445).
+5. Add your company and a customer, then create your first invoice. Follow the short tour below for expenses and accountant handoff.
 
-If a tool is already installed, skip its installation step. Thai and English OCR models are bundled. The build signs the app locally; it is not Apple notarized. The runtime uses Python's standard library and a dependency-free Node PDF helper.
+Your records stay on your Mac. The app opens with empty books on a new installation. If you already use LocalBooks, download a backup before updating; the app reuses your saved records. Intel Macs are not supported by this download.
 
-To try the source edition in a browser with a separate, empty profile:
+## Start today, or make it your own
 
-```sh
-/opt/homebrew/bin/python3.11 app.py --data "$HOME/Library/Application Support/LocalBooks-demo/data" --port 8766 --open
-```
+**Just want to run your business?** Download the app above and use it as-is. There is no subscription or cloud account.
 
-The desktop app uses `~/Library/Application Support/LocalBooks/data`. If you already use LocalBooks, that path contains your existing records: use the demo command above to evaluate this edition separately. `dev.py` also uses the normal LocalBooks data directory.
+**Want to vibe code your own workflow?** Fork the MIT-licensed source and open it in Codex, Claude Code, Cursor or your preferred AI coding tool. You can adjust forms, reports or workflows. Follow the [customization guide](DEVELOPMENT.md) and experiment with a separate demo profile before touching your live books.
 
 ## Five-minute onboarding tour
 
@@ -53,7 +47,7 @@ This repository contains source, app packaging assets, OCR models and synthetic 
 
 ## Open the app
 
-After following Quick start below, double-click the built **LocalBooks.app** in this folder. No Terminal command is needed. The app is self-contained and can be dragged to the Dock or your Applications folder. For this update, save any open draft, click **Quit LocalBooks** in the sidebar, then double-click the updated app. Existing records stay in place. Only one LocalBooks desktop instance runs for your records. Opening the app again returns to that instance and restores a minimized window. The launcher also reuses the existing local server. To load a newly rebuilt app, save any draft, quit LocalBooks, and reopen it. Click **Quit LocalBooks** in the sidebar to stop the local server and close the desktop app. Closing the window or using the Mac app menu leaves the local server running; reopening LocalBooks reconnects to it.
+After installing, open **LocalBooks** from **Applications**. No Terminal command is needed. You can keep LocalBooks in the Dock for quick access. For this update, save any open draft, click **Quit LocalBooks** in the sidebar, then double-click the updated app. Existing records stay in place. Only one LocalBooks desktop instance runs for your records. Opening the app again returns to that instance and restores a minimized window. The launcher also reuses the existing local server. To load a newly rebuilt app, save any draft, quit LocalBooks, and reopen it. Click **Quit LocalBooks** in the sidebar to stop the local server and close the desktop app. Closing the window or using the Mac app menu leaves the local server running; reopening LocalBooks reconnects to it.
 
 1. Add your company in **My companies**. Each company keeps its own numbering sequence. Enter your actual details and optionally a PNG/JPEG logo. The supplied sample issuer/customer is not preloaded.
 2. Add customers or suppliers in **Customers & suppliers**.
@@ -164,9 +158,11 @@ Supported currencies: THB, USD, EUR, GBP, SGD, AUD, CAD, JPY, KWD. Amounts use d
 
 For VAT-registered sellers, you may enter an explicit VAT rate on an invoice. The VAT % column shows the entered invoice rate; the Amount before VAT column shows each tax-exclusive line total. Item prices exclude VAT; the app calculates VAT on the subtotal with half-up rounding. You may explicitly choose a full tax invoice only for THB, after confirming the full amount has reached the VAT tax point; the seller must have its address, 13-digit tax ID, and branch recorded. A VAT-registered customer also needs a 13-digit tax ID and branch. The app does not determine tax treatment or the VAT tax point, support tax invoices for partial tax points, or issue credit notes or withholding certificates. Invoices and receipts prefill both signature blocks with the company/customer names, contact people when recorded, and the document date. In My companies, optionally upload a PNG or JPEG signature to display on newly issued invoices and receipts; changing it never rewrites issued PDFs. This is an image, not a verified digital signature. Discount fields are not supported. Have your accountant review the documents for your circumstances. There is no payroll or general ledger.
 
-## Local maintenance
+## Development and maintenance
 
-App code: `app.py`, `documents.py`, `scan.py`, `pdf.mjs`, and `static/`. Scanning requires Homebrew Poppler tools and Tesseract at `/opt/homebrew/bin`; English and Thai OCR data are bundled in `ocr/tessdata`. Storage is SQLite; no package installation is needed to run the app. The bundled launcher expects `/opt/homebrew/bin/python3.11`; PDF generation expects `/opt/homebrew/bin/node` and `/Applications/Google Chrome.app`. If one is moved or removed, update those paths in the launcher or `documents.py`. Local logs are in `~/Library/Application Support/LocalBooks/data/app.log`. To rebuild after editing the source, run `./build_app.sh`, quit the app, then reopen it.
+The downloadable app includes its own tools. Owners can install it from the release page without developer setup. To change the code, run from source or build a custom app, see [DEVELOPMENT.md](DEVELOPMENT.md).
+
+Local logs are in `~/Library/Application Support/LocalBooks/data/app.log`. Keep logs and backups private. Download a backup before updating your app.
 
 Automated checks:
 

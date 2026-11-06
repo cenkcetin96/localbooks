@@ -9,7 +9,7 @@ import tempfile
 import unicodedata
 
 ROOT=Path(__file__).resolve().parent
-TOOLS='/opt/homebrew/bin/'
+from local_tools import tool
 
 class ScanError(ValueError):pass
 
@@ -43,24 +43,24 @@ def extract_pages(content, *, max_pages=10, progress=None):
     with tempfile.TemporaryDirectory(prefix='localbooks-scan-') as directory:
         root=Path(directory);source=root/('source.'+kind);source.write_bytes(content)
         if kind=='pdf':
-            info=run([TOOLS+'pdfinfo',str(source)])
+            info=run([tool('pdfinfo'),str(source)])
             pages=re.search(r'^Pages:\s*(\d+)',info,re.M)
             if not pages or not 1<=int(pages.group(1))<=max_pages:raise ScanError(f'PDFs must contain between 1 and {max_pages} pages.')
             texts=[]
             for page in range(1,int(pages.group(1))+1):
                 if progress:progress(page,int(pages.group(1)))
-                text=run([TOOLS+'pdftotext','-f',str(page),'-l',str(page),'-layout',str(source),'-'])
+                text=run([tool('pdftotext'),'-f',str(page),'-l',str(page),'-layout',str(source),'-'])
                 visible=re.sub(r'\s','',text)
                 private_glyphs=len(re.findall(r'[\ue000-\uf8ff\ufffd]',text))
                 if len(visible)<40 or private_glyphs>len(visible)*.1:
                     image=root/'page.png'
-                    run([TOOLS+'pdftoppm','-f',str(page),'-l',str(page),'-singlefile','-png','-r','200',str(source),str(root/'page')],timeout=90)
-                    text=run([TOOLS+'tesseract',str(image),'stdout','--tessdata-dir',str(ROOT/'ocr/tessdata'),'-l','tha+eng'],timeout=90)
+                    run([tool('pdftoppm'),'-f',str(page),'-l',str(page),'-singlefile','-png','-r','200',str(source),str(root/'page')],timeout=90)
+                    text=run([tool('tesseract'),str(image),'stdout','--tessdata-dir',str(ROOT/'ocr/tessdata'),'-l','tha+eng'],timeout=90)
                 texts.append(text)
             return texts
         else:
             if progress:progress(1,1)
-            extracted=run([TOOLS+'tesseract',str(source),'stdout','--tessdata-dir',str(ROOT/'ocr/tessdata'),'-l','tha+eng'],timeout=90)
+            extracted=run([tool('tesseract'),str(source),'stdout','--tessdata-dir',str(ROOT/'ocr/tessdata'),'-l','tha+eng'],timeout=90)
             return [extracted]
 
 
@@ -72,7 +72,7 @@ def scan_document(content, *, companies=(), contacts=(), preview=False):
         try:
             with tempfile.TemporaryDirectory(prefix='localbooks-preview-') as directory:
                 root=Path(directory);source=root/'source.pdf';source.write_bytes(content)
-                run([TOOLS+'pdftoppm','-f','1','-l','10','-scale-to','1100','-png',str(source),str(root/'page')],timeout=90)
+                run([tool('pdftoppm'),'-f','1','-l','10','-scale-to','1100','-png',str(source),str(root/'page')],timeout=90)
                 result['previews']=[];total=0
                 for page in sorted(root.glob('page-*.png'),key=lambda p:int(p.stem.split('-')[-1])):
                     raw=page.read_bytes();total+=len(raw)

@@ -30,3 +30,9 @@ __pycache__/
 .playwright-cli/
 .venv/
 node_modules/
+
+# Release build artifacts
+/build/
+/dist/
+/release/
+*.dmg

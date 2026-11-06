@@ -3,7 +3,7 @@ import {spawn} from 'node:child_process';
 import {readFileSync,writeFileSync} from 'node:fs';
 import {pathToFileURL} from 'node:url';
 const [source,destination,profile]=process.argv.slice(2);
-const browser=spawn('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',[
+const browser=spawn(process.env.LOCALBOOKS_CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',[
   '--headless=new','--remote-debugging-pipe','--disable-gpu','--no-first-run',
   '--disable-background-networking','--disable-component-update','--disable-sync',
   '--disable-extensions','--disable-default-apps','--no-default-browser-check',

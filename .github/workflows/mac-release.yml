@@ -1,0 +1,53 @@
+name: Build Mac app
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  mac-app:
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: '1'
+      PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/build/browsers
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: |
+          test "$(uname -m)" = arm64
+          brew install python@3.11 node@24 poppler tesseract
+          /opt/homebrew/bin/python3.11 -m venv build/venv
+          build/venv/bin/pip install pyinstaller==6.22.3 playwright==1.58.0
+          build/venv/bin/python -m playwright install chromium --only-shell
+      - name: Test source
+        run: |
+          /opt/homebrew/bin/python3.11 -m unittest discover -s tests -v
+          for test in tests/test_*.mjs; do /opt/homebrew/opt/node@24/bin/node "$test"; done
+      - name: Bundle app runtime
+        run: |
+          export LOCALBOOKS_BROWSER="$(find "$PLAYWRIGHT_BROWSERS_PATH" -type f -name chrome-headless-shell -print -quit | xargs dirname)"
+          build/venv/bin/pyinstaller --noconfirm packaging/release.spec
+          build/venv/bin/python packaging/collect_notices.py
+          build/venv/bin/python packaging/build_release.py
+      - name: Test bundled app with isolated records
+        run: |
+          /opt/homebrew/bin/python3.11 tests/smoke_release.py
+      - name: Package drag-to-install download
+        run: |
+          mkdir -p build/dmg
+          mv release/LocalBooks.app build/dmg/
+          ln -s /Applications build/dmg/Applications
+          cp packaging/INSTALL.html 'build/dmg/Start here.html'
+          hdiutil create -volname LocalBooks -srcfolder build/dmg -ov -format UDZO release/LocalBooks-1.1.0-macOS-AppleSilicon.dmg
+          cd release
+          shasum -a 256 *.dmg *.zip > SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LocalBooks-Mac-release
+          path: release/*
+          retention-days: 14
+      - name: Publish tested release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create v1.1.0 release/* --target "$GITHUB_SHA" --title 'LocalBooks 1.1 — Download, open and start your books' --notes-file packaging/RELEASE_NOTES.md --latest
