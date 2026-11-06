@@ -1,10 +1,16 @@
 name: Build Mac app
 on:
   workflow_dispatch:
+    inputs:
+      verify_existing:
+        description: Verify the published disk image instead of building a new release
+        type: boolean
+        default: false
 permissions:
   contents: write
 jobs:
   mac-app:
+    if: ${{ !inputs.verify_existing }}
     runs-on: macos-15
     timeout-minutes: 45
     env:
@@ -51,3 +57,33 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create v1.1.0 release/* --target "$GITHUB_SHA" --title 'LocalBooks 1.1 — Download, open and start your books' --notes-file packaging/RELEASE_NOTES.md --latest
+
+  verify-download:
+    if: ${{ inputs.verify_existing }}
+    runs-on: macos-15
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download published app and verify checksum
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p release
+          gh release download v1.1.0 --pattern '*.dmg' --pattern SHA256SUMS.txt --dir release
+          python3 - <<'PYTHON'
+          from pathlib import Path
+          import hashlib
+          for line in Path('release/SHA256SUMS.txt').read_text().splitlines():
+              expected, name = line.split(maxsplit=1)
+              if name.endswith('.dmg'):
+                  assert hashlib.sha256(Path('release', name).read_bytes()).hexdigest() == expected
+          PYTHON
+      - name: Verify the actual download with empty temporary records
+        run: |
+          mkdir -p "$RUNNER_TEMP/localbooks-image"
+          hdiutil attach -readonly -nobrowse -mountpoint "$RUNNER_TEMP/localbooks-image" release/LocalBooks-1.1.0-macOS-AppleSilicon.dmg
+          codesign --verify --deep --strict "$RUNNER_TEMP/localbooks-image/LocalBooks.app"
+          python3 tests/smoke_release.py "$RUNNER_TEMP/localbooks-image/LocalBooks.app"
+          hdiutil detach "$RUNNER_TEMP/localbooks-image"
