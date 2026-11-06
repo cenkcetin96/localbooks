@@ -1,0 +1,135 @@
+/* Shared by the editable paper and the self-contained, saved documents. */
+.paper {
+  --accent: #111111;
+  --accent-ink: #111111;
+  --tint: #f4f4f4;
+  --ink: #111111;
+  --muted: #666666;
+  --rule: #dddddd;
+  box-sizing: border-box;
+  position: relative;
+  width: 595.28pt;
+  min-height: 841.89pt;
+  margin: 18pt auto;
+  padding: 36pt 36pt 64pt;
+  background: #fff;
+  color: var(--ink);
+  font: 400 9pt/12.5pt Arial, Thonburi, sans-serif;
+  font-variant-numeric: tabular-nums;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.paper *, .paper *::before, .paper *::after { box-sizing: border-box; }
+.paper b { font-weight: 700; }
+.paper-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 24pt; min-height: 54pt; }
+.paper h1 { margin: 0; color: var(--accent-ink); font: 700 26pt/30pt Arial, Thonburi, sans-serif; letter-spacing: -.6pt; }
+.paper h1 .title-thai { display: block; margin-top: 4pt; color: var(--muted); font-size: 11pt; line-height: 16pt; font-weight: 400; letter-spacing: 0; }
+.paper-logo { display: flex; align-items: center; justify-content: flex-end; width: 175pt; height: 64pt; font-size: 20pt; font-weight: 700; line-height: 24pt; overflow-wrap: anywhere; text-align: right; }
+.paper-logo.image { margin-top: -5pt; margin-bottom: -5pt; }
+.paper-logo.image { object-fit: contain; object-position: right top; border: 0; }
+.paper-logo small { color: #888888; font-size: 8pt; font-weight: 400; letter-spacing: 1pt; }
+#paper-logo-holder { flex: 0 0 auto; }
+.paper-metadata { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 30pt; padding: 10pt 0; margin-top: 10pt; border-top: .75pt solid var(--rule); border-bottom: .75pt solid var(--rule); }
+.paper-metadata > div { display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; }
+.paper-metadata > div > :first-child { display: block; margin-bottom: 5pt; color: var(--muted); font-size: 7.5pt; line-height: 11pt; font-weight: 400; }
+.paper-metadata > div > :last-child { display: block; margin-top: auto; font-weight: 700; font-size: 9pt; line-height: 13pt; }
+.paper:not(.paper-receipt) .paper-metadata { grid-template-columns: minmax(0, 1.45fr) repeat(3, minmax(0, 1fr)); gap: 18pt; }
+.paper:not(.paper-receipt) .paper-metadata > div:first-child > :first-child,
+.paper:not(.paper-receipt) .paper-metadata > div:first-child > :last-child { white-space: nowrap; }
+.paper-parties { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 30pt; margin-top: 15pt; }
+.paper-parties > div { min-width: 0; overflow-wrap: anywhere; }
+.paper .party-label { display: block; margin-bottom: 5pt; color: var(--muted); font-size: 8pt; line-height: 11pt; font-weight: 400; }
+.paper-parties b { display: block; margin-bottom: 4pt; font-size: 10pt; line-height: 15pt; }
+.paper .party-contact { color: var(--muted); font-size: 8pt; line-height: 12pt; }
+.paper .doc-tax { margin-top: 7pt; font-size: 8pt; line-height: 12pt; }
+.paper .preserve { white-space: pre-wrap; }
+.paper-headline { display: flex; align-items: center; justify-content: space-between; gap: 16pt; margin: 16pt 0 14pt; padding: 9pt 12pt; background: var(--tint); color: var(--accent-ink); font: 400 10pt/15pt Arial, Thonburi, sans-serif; letter-spacing: 0; }
+.paper-headline .summary-label { font-size: 9pt; font-weight: 700; }
+.paper-headline .summary-detail { display: block; margin-top: 3pt; color: var(--muted); font-size: 8pt; line-height: 12pt; font-weight: 400; }
+.paper-headline .summary-amount { flex-shrink: 0; font-size: 22pt; line-height: 27pt; font-weight: 700; letter-spacing: -.4pt; }
+.paper-items { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.paper-items th { padding: 6pt 8pt; background: #f4f4f4; border: 0; border-bottom: .75pt solid var(--rule); color: #555555; font: 700 8pt/12pt Arial, Thonburi, sans-serif; letter-spacing: 0; text-transform: none; text-align: left; }
+.paper .paper-items td { position: relative; vertical-align: top; padding: 7pt 8pt; border: 0; border-bottom: .75pt solid var(--rule); color: var(--ink); font: 400 9pt/13pt Arial, Thonburi, sans-serif; overflow-wrap: anywhere; }
+.paper-items th:not(:first-child), .paper-items td:not(:first-child) { text-align: right; }
+.paper-items td:last-child { font-weight: 700; }
+.paper .line-detail { display: block; margin-top: 2pt; color: var(--muted); font-size: 8pt; line-height: 11pt; font-weight: 400; }
+.paper-totals { width: 294pt; margin: 16pt 0 0 auto; break-inside: avoid; }
+.paper-totals > div { display: flex; justify-content: space-between; align-items: baseline; gap: 12pt; padding: 3pt 8pt; border-bottom: .75pt solid var(--rule); font-size: 9pt; line-height: 13pt; }
+.paper-totals > div > :first-child { min-width: 0; }
+.paper-totals > div > :last-child { flex-shrink: 0; text-align: right; }
+.paper-totals .total-emphasis { margin-top: 5pt; padding: 7pt 10pt; border: 0; background: var(--tint); color: var(--accent-ink); }
+.paper-totals .total-emphasis > :last-child { font-size: 12pt; }
+.paper-extra { margin-top: 17pt; padding-top: 10pt; border-top: .75pt solid var(--rule); overflow-wrap: anywhere; font-size: 9pt; line-height: 13.5pt; }
+.paper-extra b { display: block; margin-bottom: 5pt; font-size: 8.5pt; }
+.paper-history { margin-top: 16pt; }
+.paper-history h2 { margin: 0 0 7pt; color: var(--ink); font: 700 10pt/14pt Arial, Thonburi, sans-serif; letter-spacing: 0; }
+.paper-payments th:nth-child(2), .paper-payments td:nth-child(2) { text-align: left; }
+.paper .paper-payments td { font-size: 8pt; line-height: 12pt; font-weight: 400; }
+.paper-signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 48pt; margin-top: 12pt; break-inside: avoid; font-size: 8pt; line-height: 12pt; }
+.paper-signatures > div > div { height: 34pt; border-bottom: .75pt solid #aaaaaa; margin-bottom: 7pt; }
+.paper-signatures img { display: block; width: 155pt; height: 32pt; object-fit: contain; object-position: left bottom; }
+.paper-signatures b, .paper-signatures span { display: block; }
+.paper-signatures span { margin-top: 6pt; color: var(--muted); }
+.paper-footer { position: absolute; bottom: 26pt; left: 36pt; right: 36pt; display: flex; justify-content: space-between; align-items: baseline; gap: 20pt; padding-top: 8pt; border-top: .75pt solid var(--rule); color: var(--muted); font: 400 7pt/10pt Arial, Thonburi, sans-serif; letter-spacing: 0; }
+.paper-footer > :first-child { overflow-wrap: anywhere; }
+.paper-footer > :last-child { flex-shrink: 0; }
+.paper .continued { margin: 0 0 20pt; color: var(--muted); font-size: 9pt; font-weight: 700; }
+.paper .draft { position: absolute; top: 12pt; left: 36pt; color: var(--muted); font-size: 7pt; line-height: 10pt; letter-spacing: .5pt; }
+.paper-totals > div[hidden] { display: none; }
+.paper-summary { display: grid; grid-template-columns: minmax(0, 1fr) 280pt; gap: 24pt; margin-top: 16pt; }
+.paper-summary .paper-totals { width: auto; margin: 0; }
+.paper-summary .paper-extra:first-child { margin-top: 0; padding-top: 0; border: 0; }
+.paper-summary .paper-extra { margin-top: 9pt; padding-top: 6pt; font-size: 8pt; line-height: 12pt; }
+.paper-summary .paper-history { margin: 0; }
+
+.paper-summary .paper-bank { line-height: 11pt; }
+
+
+.paper-logo.image, .paper-signatures img { filter: grayscale(1); }
+
+/* Receipts use a compact single-page layout, with readable fit limits at export. */
+.paper-receipt { padding-top: 30pt; font-size: 8.5pt; line-height: 11.5pt; }
+.paper-receipt .paper-header { min-height: 46pt; }
+.paper-receipt h1 { font-size: 24pt; line-height: 28pt; }
+.paper-receipt .paper-logo { height: 54pt; }
+.paper-receipt .paper-metadata { margin-top: 8pt; padding: 8pt 0; }
+.paper-receipt .paper-parties { margin-top: 12pt; }
+.paper-receipt .paper-headline { margin: 12pt 0; padding: 7pt 12pt; }
+.paper-receipt .paper-items td { padding-top: 4pt; padding-bottom: 4pt; font-size: 8.5pt; line-height: 12pt; }
+.paper-receipt .paper-summary { margin-top: 12pt; }
+.paper-receipt .paper-totals > div { padding-top: 2pt; padding-bottom: 2pt; }
+.paper-receipt .paper-totals .total-emphasis { padding-top: 6pt; padding-bottom: 6pt; }
+.paper-receipt .paper-signatures { margin-top: 28pt; }
+.paper-receipt .paper-signatures > div > div { height: 34pt; }
+.paper-receipt .paper-signatures img { height: 32pt; }
+.paper-receipt .paper-signatures span { margin-top: 4pt; }
+
+.paper-receipt .line-detail { margin-top: 1pt; font-size: 7.5pt; line-height: 10pt; }
+
+.paper .paper-metadata { background: var(--tint); border: 0; box-shadow: 8pt 0 0 var(--tint), -8pt 0 0 var(--tint); }
+.paper .paper-summary .paper-bank { margin: 0; padding: 9pt; border: 0; background: var(--tint); }
+.paper .paper-bank b { margin-bottom: 6pt; }
+.paper .paper-bank > div { line-height: 12pt; }
+.paper-receipt .paper-history { margin-top: 14pt; }
+
+.paper-receipt.receipt-tight .paper-items td { padding-top: 3pt; padding-bottom: 3pt; }
+.paper-receipt.receipt-tight .paper-payments th { padding-top: 4pt; padding-bottom: 4pt; }
+.paper-receipt.receipt-tight .paper-history h2 { margin-bottom: 5pt; line-height: 12pt; }
+.paper-receipt.receipt-tight .paper-signatures { margin-top: 10pt; }
+.paper-receipt.receipt-tight .paper-signatures > div > div { height: 30pt; }
+
+.paper:not(.paper-receipt) .paper-summary .paper-bank { padding: 8pt; }
+.paper:not(.paper-receipt) .paper-bank > div { line-height: 11pt; }
+.paper:not(.paper-receipt) .paper-bank b { margin-bottom: 5pt; }
+
+.paper-bank { position: relative; }
+.paper-bank .bank-logo { position: absolute; top: 8pt; right: 20pt; width: 34pt; height: 32pt; object-fit: contain; }
+.paper-bank:has(.bank-logo) > b { padding-right: 40pt; }
+
+.paper-receipt .paper-metadata > div:nth-child(-n+2) > :last-child { white-space: nowrap; font-size: 8pt; }
+
+.paper-signatures .signature-person, .paper-signatures .signature-party { margin-top: 3pt; color: var(--ink); line-height: 11pt; }
+.paper-signatures .signature-person { font-weight: 700; }
+
+.paper-signatures > div { display: flex; flex-direction: column; }
+.paper .paper-signatures .signature-date { margin-top: auto; padding-top: 4pt; }

@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import vm from 'node:vm';
+import {readFileSync} from 'node:fs';
+const context=vm.createContext({state:{currencies:{THB:2,JPY:0,KWD:3}}});
+vm.runInContext(readFileSync(new URL('../static/editor.js',import.meta.url),'utf8'),context);
+vm.runInContext(readFileSync(new URL('../static/bank.js',import.meta.url),'utf8'),context);
+const valid={date:'2025-10-01',direction:'in',amount:'100.00',description:'Deposit',selected:true,errors:[]};
+const zero={date:'2025-06-16',direction:'',amount:'0',description:'Account opening',selected:false,errors:['Check amount']};
+assert.equal(context.bankSelectionError({currency:'THB',rows:[zero,valid]}),'');
+assert.match(context.bankSelectionError({currency:'THB',rows:[{...zero,selected:true},valid]}),/row 1/);
+assert.match(context.bankSelectionError({currency:'THB',rows:[zero]}),/Select at least one/);
+assert.match(context.bankSelectionError({currency:'THB',rows:[{...valid,amount:'0'}]}),/row 1/);
+assert.match(context.bankSelectionError({currency:'THB',rows:[{...valid,amount:'1.001'}]}),/row 1/);
+console.log('Unchecked invalid rows do not block import; selected zero/invalid amounts are rejected.');

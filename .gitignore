@@ -1,0 +1,32 @@
+# Business records and local runtime
+/data/
+/backups/
+/safety-copies/
+/output/
+/tmp/
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+*.pdf
+*.csv
+*.xlsx
+*.zip
+*.log
+*.lock
+runtime.json
+.env
+.env.*
+*.pem
+*.key
+
+# Generated desktop bundles, caches and local tooling
+*.app/
+__pycache__/
+*.py[cod]
+.DS_Store
+.playwright-cli/
+.venv/
+node_modules/
