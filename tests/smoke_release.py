@@ -10,7 +10,7 @@ import tempfile
 import time
 
 root = Path(__file__).resolve().parents[1]
-app = root / 'release/LocalBooks.app'
+app = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else root / 'release/LocalBooks.app'
 backend = app / 'Contents/Resources/backend/_internal'
 assert not list(app.rglob('*.sqlite3')), 'The download must contain no business database'
 for name in ('node', 'pdfinfo', 'pdftotext', 'pdftoppm', 'tesseract'):
