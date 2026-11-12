@@ -25,6 +25,40 @@ class AppTests(unittest.TestCase):
         d=self.draft(**overrides);return self.s.issue(d['id'],expected_revision=d['revision'])
     def payment(self,inv,amount,key='one',**extra):
         return self.s.add_payment(inv['id'],dict(amount=amount,method='Bank transfer',request_key=key,**{'date':dt.date.today().isoformat(),**extra}))
+    def test_monthly_invoice_numbers_use_current_company_setting(self):
+        draft=self.draft(issue_date='2026-11-09')
+        company=self.s.save_party('companies',{**self.company,'invoice_number_format':'monthly'})
+        invoice=self.s.issue(draft['id'],expected_revision=draft['revision'])
+        self.assertEqual(invoice['number'],'DEMO-IV-2026-11-00001')
+        self.assertEqual(self.issued(issue_date='2026-11-10')['number'],'DEMO-IV-2026-11-00002')
+        self.assertEqual(self.issued(issue_date='2026-12-01')['number'],'DEMO-IV-2026-12-00001')
+        self.assertEqual(self.issued(issue_date='2027-11-01')['number'],'DEMO-IV-2027-11-00001')
+        custom=self.draft(issue_date='2026-11-12')
+        self.s.issue(custom['id'],custom='DEMO-IV-2026-11-00003',expected_revision=custom['revision'])
+        self.assertEqual(self.issued(issue_date='2026-11-13')['number'],'DEMO-IV-2026-11-00004')
+        duplicate=self.draft(issue_date='2026-11-14')
+        with self.assertRaises(ValidationError):
+            self.s.issue(duplicate['id'],custom=invoice['number'],expected_revision=duplicate['revision'])
+        self.assertEqual(self.s.invoice(duplicate['id'])['status'],'draft')
+        with self.s.db:
+            self.assertEqual(self.s.reserve_number(company,'RCT','2026-11-09'),'DEMO-RCT-2026-0001')
+            other=self.s.save_party('companies',dict(name='Other',code='OTHER'))
+            self.assertEqual(self.s.reserve_number(other,'INV','2026-11-09'),'OTHER-INV-2026-0001')
+        self.s.save_party('companies',dict(id=company['id'],name=company['name'],code=company['code']))
+        self.assertEqual(self.s.party('companies',company['id'])['invoice_number_format'],'monthly')
+        backup=self.s.backup();self.s.restore(backup,'RESTORE')
+        self.assertEqual(self.issued(issue_date='2026-11-15')['number'],'DEMO-IV-2026-11-00005')
+        with self.assertRaises(ValidationError):
+            self.s.save_party('companies',{**company,'invoice_number_format':'invalid'})
+
+    def test_monthly_number_separators_preserve_existing_sequence(self):
+        self.s.save_party('companies',{**self.company,'invoice_number_format':'monthly'})
+        with self.s.db:
+            self.s.db.execute('INSERT INTO numbers VALUES(?,?)',(self.company['id'],'DEMO-IV-20261100001'))
+            self.s.db.execute('INSERT INTO counters VALUES(?,?,?,?)',(self.company['id'],'IV','202611',2))
+        self.assertEqual(self.issued(issue_date='2026-11-09')['number'],'DEMO-IV-2026-11-00002')
+
+
     def test_duplicate_paid_invoice_is_independent_editable_draft(self):
         today=dt.date.today();old_date=(today-dt.timedelta(days=30)).isoformat()
         self.s.save_party('companies',dict(id=self.company['id'],name='Demo Company',code='DEMO',vat_registered=True))
@@ -185,7 +219,7 @@ class AppTests(unittest.TestCase):
         self.assertEqual((paid['cash_paid_minor'],paid['withheld_minor'],paid['paid_minor'],paid['balance_minor']),(1600500,49500,1650000,0))
         receipt=paid['payments'][-1]
         html=self.s.db.execute('SELECT html FROM payments WHERE id=?',(receipt['id'],)).fetchone()[0]
-        self.assertIn('Withholding tax',html);self.assertIn('฿245.00',html);self.assertIn('฿8,005.00',html)
+        self.assertIn('Withholding tax',html);self.assertIn('THB 245.00',html);self.assertIn('THB 8,005.00',html)
         backup=self.s.backup()
         reversed_invoice=self.s.reverse_payment(paid['id'],receipt['id'],'Correction')
         self.assertEqual(reversed_invoice['balance_minor'],825000)
@@ -283,9 +317,9 @@ class AppTests(unittest.TestCase):
         with self.assertRaises(ValidationError):self.s.issue(invoice['id'],expected_revision=invoice['revision'])
         invoice=self.s.issue(invoice['id'],expected_revision=invoice['revision'],tax_confirmed=True)
         html=self.s.db.execute('SELECT html FROM invoices WHERE id=?',(invoice['id'],)).fetchone()[0]
-        self.assertIn('ใบกำกับภาษี',html);self.assertIn('VAT 7%',html);self.assertIn('฿7.00',html)
+        self.assertIn('ใบกำกับภาษี',html);self.assertIn('VAT 7%',html);self.assertIn('THB 7.00',html)
         self.assertIn('<th>VAT %</th><th>Amount before VAT</th>',html)
-        self.assertIn('<td>7%</td><td>฿100.01</td>',html)
+        self.assertIn('<td>7%</td><td>THB 100.01</td>',html)
         with self.assertRaises(ValidationError):self.s.void(invoice['id'],'Correction')
         receipt=self.payment(invoice,'107.01')
         html=self.s.db.execute('SELECT html FROM payments WHERE id=?',(receipt['payments'][0]['id'],)).fetchone()[0]
@@ -324,7 +358,7 @@ class AppTests(unittest.TestCase):
     def test_receipt_records_specific_payment_without_future_rewrite(self):
         i=self.issued();i=self.payment(i,'20',reference='BANK-REF-123');p=i['payments'][0]
         old=self.s.db.execute('SELECT html FROM payments WHERE id=?',(p['id'],)).fetchone()[0]
-        self.assertIn('Remaining balance',old);self.assertIn('฿80.00',old)
+        self.assertIn('Remaining balance',old);self.assertIn('THB 80.00',old)
         self.assertNotIn('BANK-REF-123',old)
         self.assertEqual(p['data']['reference'],'BANK-REF-123')
         self.payment(i,'80','two')

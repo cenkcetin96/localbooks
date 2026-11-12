@@ -105,8 +105,8 @@ function attachmentReview(target,file,scan,upload){
   for(const k of ['supplier','date','amount'])form.elements[k].required=action==='create_expense';
   if(action==='create_expense'&&form.elements.category.value==='unclassified')form.elements.category.value='expense';
   if(action==='link'&&select.value.startsWith('expense:')&&form.elements.category.value==='unclassified')form.elements.category.value='expense';
-  const collision=(state.journal||[]).some(e=>!e.duplicate_of&&e.company_id===bank.company_id&&e.currency===bank.currency&&e.payment_status==='paid'&&e.payment_date===bank.date&&e.paid_amount_minor===bank.amount_minor);
-  if(collision&&!$('#attachment-collision input'))$('#attachment-collision').innerHTML='<label class="check"><input type="checkbox" name="separate_payment_confirmed"><span>This is a separate payment from an existing paid expense.</span></label>';
+  const collision=bankCashCollision(bank);
+  if(collision&&!$('#attachment-collision input'))$('#attachment-collision').innerHTML='<label class="check"><input type="checkbox" name="separate_payment_confirmed"><span>This is a different payment from an existing receipt or paid expense.</span></label>';
   $('#attachment-collision').hidden=!collision;
   if(mismatch){
    for(const name of ['category','action','matched_record'])form.elements[name].closest('.field').hidden=true;

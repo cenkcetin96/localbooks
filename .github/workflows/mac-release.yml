@@ -27,6 +27,7 @@ jobs:
           build/venv/bin/python -m playwright install chromium --only-shell
       - name: Test source
         run: |
+          ln -s "$(find "$PLAYWRIGHT_BROWSERS_PATH" -type f -name chrome-headless-shell -print -quit | xargs dirname)" browser
           /opt/homebrew/bin/python3.11 -m unittest discover -s tests -v
           for test in tests/test_*.mjs; do /opt/homebrew/opt/node@24/bin/node "$test"; done
       - name: Bundle app runtime
@@ -44,7 +45,7 @@ jobs:
           mv release/LocalBooks.app build/dmg/
           ln -s /Applications build/dmg/Applications
           cp packaging/INSTALL.html 'build/dmg/Start here.html'
-          hdiutil create -volname LocalBooks -srcfolder build/dmg -ov -format UDZO release/LocalBooks-1.1.0-macOS-AppleSilicon.dmg
+          hdiutil create -volname LocalBooks -srcfolder build/dmg -ov -format UDZO release/LocalBooks-1.1.1-macOS-AppleSilicon.dmg
           cd release
           shasum -a 256 *.dmg *.zip > SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
@@ -56,7 +57,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create v1.1.0 release/* --target "$GITHUB_SHA" --title 'LocalBooks 1.1 — Download, open and start your books' --notes-file packaging/RELEASE_NOTES.md --latest
+          gh release create v1.1.1 release/* --target "$GITHUB_SHA" --title 'LocalBooks 1.1.1 — Safer payments and clearer cash flow' --notes-file packaging/RELEASE_NOTES.md --latest
 
   verify-download:
     if: ${{ inputs.verify_existing }}
@@ -71,7 +72,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p release
-          gh release download v1.1.0 --pattern '*.dmg' --pattern SHA256SUMS.txt --dir release
+          gh release download v1.1.1 --pattern '*.dmg' --pattern SHA256SUMS.txt --dir release
           python3 - <<'PYTHON'
           from pathlib import Path
           import hashlib
@@ -83,7 +84,7 @@ jobs:
       - name: Verify the actual download with empty temporary records
         run: |
           mkdir -p "$RUNNER_TEMP/localbooks-image"
-          hdiutil attach -readonly -nobrowse -mountpoint "$RUNNER_TEMP/localbooks-image" release/LocalBooks-1.1.0-macOS-AppleSilicon.dmg
+          hdiutil attach -readonly -nobrowse -mountpoint "$RUNNER_TEMP/localbooks-image" release/LocalBooks-1.1.1-macOS-AppleSilicon.dmg
           codesign --verify --deep --strict "$RUNNER_TEMP/localbooks-image/LocalBooks.app"
           python3 tests/smoke_release.py "$RUNNER_TEMP/localbooks-image/LocalBooks.app"
           hdiutil detach "$RUNNER_TEMP/localbooks-image"

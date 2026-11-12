@@ -15,7 +15,7 @@ function applyCompanyContext(id){
 }
 function companySwitchBlocked(){return !!document.querySelector('#main form,dialog[open]')||!!bankImportDraft}
 function resetCompanyFilters(){
- overviewDrill=null;filters.q='';filters.status='all';journalYear='all';journalSearch='';journalReviewFilter='all';journalPage=0;journalSource='document';expensePaymentFilter='all';complianceMonth='all';
+ overviewDrill=null;filters.q='';filters.status='active';journalYear='all';journalSearch='';journalReviewFilter='all';journalPage=0;journalSource='document';expensePaymentFilter='all';complianceMonth='all';
 }
 function renderCompanySwitcher(){
  const holder=document.querySelector('#company-context');if(!holder)return;

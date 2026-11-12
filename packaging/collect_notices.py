@@ -56,12 +56,12 @@ with ThreadPoolExecutor(max_workers=6) as pool:
     manifest = list(pool.map(collect, sorted(components.items())))
 (sources / 'components.json').write_text(json.dumps(manifest, indent=2))
 (notices / 'components.json').write_text(json.dumps(manifest, indent=2))
-(sources / 'README.txt').write_text('Exact upstream sources and Homebrew build recipes for the separately bundled tools and libraries.\nLocalBooks application source: https://github.com/cenkcetin96/localbooks/tree/v1.1.0\nLibraries were relocated and ad-hoc signed by PyInstaller; upstream source was not edited.\nBuild: packaging/release.spec, packaging/build_release.py and .github/workflows/mac-release.yml in the application repository.\n')
+(sources / 'README.txt').write_text('Exact upstream sources and Homebrew build recipes for the separately bundled tools and libraries.\nLocalBooks application source: https://github.com/cenkcetin96/localbooks/tree/v1.1.1\nLibraries were relocated and ad-hoc signed by PyInstaller; upstream source was not edited.\nBuild: packaging/release.spec, packaging/build_release.py and .github/workflows/mac-release.yml in the application repository.\n')
 from browser_sources import collect as collect_browser_sources
 browser_version = subprocess.check_output([str(Path(os.environ['LOCALBOOKS_BROWSER']) / 'chrome-headless-shell'), '--version'], text=True)
 collect_browser_sources(sources / 'chromium', re.search(r'\d+\.\d+\.\d+\.\d+', browser_version)[0])
 (root / 'release').mkdir(exist_ok=True)
-with zipfile.ZipFile(root / 'release/LocalBooks-1.1.0-third-party-sources.zip', 'w', compression=zipfile.ZIP_STORED) as archive:
+with zipfile.ZipFile(root / 'release/LocalBooks-1.1.1-third-party-sources.zip', 'w', compression=zipfile.ZIP_STORED) as archive:
     for path in sources.rglob('*'):
         if path.is_file():
             archive.write(path, path.relative_to(sources))

@@ -37,7 +37,7 @@ for name,sample,p,required in [
     for value in required:assert value in extracted,(name,value)
     print(name+' content preserved',flush=True)
 
-# A receipt must be exactly one page, with no silently dropped content.
+# Short receipts stay on one page; longer receipts preserve every item and payment.
 receipt=copy.deepcopy(inv)
 receipt['data']['company'].update(bank_name='Example Bank',bank_account_name='Example Company',bank_account_number='001-02-0034',bank_branch='Bangkok')
 receipt['data']['lines']=[dict(line,description=f'Receipt item {i+1:02}',service='November 2026',unit_price='100.00',total_minor=10000) for i in range(8)]
@@ -49,7 +49,10 @@ assert any(row.split()==['Pages:','1'] for row in info.splitlines()),info
 extracted=subprocess.check_output([shutil_which('pdftotext'),str(target),'-'],text=True)
 for value in ['Receipt item 08','001-02-0034','Withholding tax','24.00','Authorized by','Received by','Page 1 of 1']:
     assert value in extracted,value
-try:make_pdf(render_document(many,many['payments'][-1]))
-except RuntimeError as error:assert 'Receipt exceeds one page' in str(error),str(error)
-else:raise AssertionError('Oversized receipt should not generate extra pages or hide content')
-print('Receipt one-page output, preserved fields and overflow rejection passed',flush=True)
+target=out/'long-receipt.pdf';target.write_bytes(make_pdf(render_document(many,many['payments'][-1])))
+info=subprocess.check_output([shutil_which('pdfinfo'),str(target)],text=True)
+assert int(next(row.split(':',1)[1] for row in info.splitlines() if row.startswith('Pages:')))>1
+extracted=subprocess.check_output([shutil_which('pdftotext'),str(target),'-'],text=True)
+for value in ['HISTORY-001','HISTORY-035','Authorized by','Received by']:
+    assert value in extracted,value
+print('Short receipt one-page output and long receipt pagination preserve all content',flush=True)

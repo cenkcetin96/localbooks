@@ -216,6 +216,9 @@ class Store:
                 if 'company_ids' in previous:out['company_ids']=previous['company_ids']
         if table == 'companies':
             previous=self.party(table,data['id']) if data.get('id') else {}
+            out['invoice_number_format']=data.get('invoice_number_format',previous.get('invoice_number_format','annual'))
+            if out['invoice_number_format'] not in ('annual','monthly'):
+                raise ValidationError('Choose annual or monthly invoice numbering.')
             for key,limit in [('bank_name',120),('bank_account_name',200),('bank_account_number',80),('bank_branch',120),('bank_swift',11)]:
                 out[key]=text(data.get(key,previous.get(key,'')),key.replace('_',' ').title(),limit)
             out['bank_swift']=out['bank_swift'].upper()
@@ -521,6 +524,7 @@ class Store:
                 if kind=='payment' and self.db.execute("SELECT 1 FROM bank_entries WHERE json_extract(data,'$.matched_record')=? AND id!=?",(match,old['id'])).fetchone():raise ValidationError('That receipt payment is already linked to another bank transaction.')
             if reviewed and category=='unclassified':raise ValidationError('Classify the transaction before marking it reviewed.')
             if data.get('separate_payment_confirmed') is not True and not match and data.get('cash_flow') is True:
+                if self.db.execute("SELECT 1 FROM payments p JOIN invoices i ON i.id=p.invoice_id WHERE p.reversed IS NULL AND i.kind=? AND i.company_id=? AND i.currency=? AND p.amount_minor=? AND json_extract(p.data,'$.date')=?",('sale' if item['direction']=='in' else 'purchase',old['company_id'],old['currency'],item['amount_minor'],item['date'])).fetchone():raise ValidationError('An existing receipt already records this cash movement. Link it, or confirm this is a separate payment.')
                 for expense in self.journal():
                     if not expense.get('duplicate_of') and expense['company_id']==old['company_id'] and expense['currency']==old['currency'] and expense.get('payment_date')==item['date'] and reconciliation.manual_cash(expense)==item['amount_minor'] and item['direction']=='out':raise ValidationError('A paid expense already records this cash movement. Link it, or confirm this is a separate payment.')
             cash=data.get('cash_flow') is True
@@ -823,7 +827,7 @@ class Store:
                 company_details=d['company'],contact_details=d['contact'],issue_date=issued.isoformat(),due_date=due,
                 **{key:d[key] for key in ('lines','vat_rate','tax_invoice','reference','notes','payment_instructions') if key in d}))
 
-    def reserve_number(self, company, prefix, year, custom=''):
+    def reserve_number(self, company, prefix, issue_date, custom=''):
         if custom:
             number=text(custom,'Document number',80,True)
             if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_./-]*',number):
@@ -831,10 +835,13 @@ class Store:
             try:self.db.execute('INSERT INTO numbers VALUES(?,?)',(company['id'],number))
             except sqlite3.IntegrityError:raise ValidationError('That document number is already used. Choose another number.')
             return number
+        monthly=prefix=='INV' and company.get('invoice_number_format')=='monthly'
+        year=issue_date[:7].replace('-','') if monthly else issue_date[:4]
+        if monthly:prefix='IV'
         row=self.db.execute('SELECT next FROM counters WHERE company_id=? AND prefix=? AND year=?',(company['id'],prefix,year)).fetchone()
         n=row['next'] if row else 1
         while True:
-            number=f"{company['code']}-{prefix}-{year}-{n:04d}"
+            number=f"{company['code']}-{prefix}-{issue_date[:7]}-{n:05d}" if monthly else f"{company['code']}-{prefix}-{year}-{n:04d}"
             n+=1
             try:self.db.execute('INSERT INTO numbers VALUES(?,?)',(company['id'],number));break
             except sqlite3.IntegrityError:continue
@@ -859,7 +866,7 @@ class Store:
                 if not buyer.get('address'):raise ValidationError('Tax invoices need the customer address.')
                 if buyer.get('vat_registered') and (not buyer.get('branch') or not re.fullmatch(r'\d{13}',buyer.get('tax_id',''))):raise ValidationError('A VAT-registered customer needs a branch and 13-digit tax ID.')
             d['company'].update({k:self.party('companies',inv['company_id']).get(k,'') for k in DOCUMENT_COMPANY_FIELDS})
-            number=self.reserve_number(d['company'],'INV',d['issue_date'][:4],custom)
+            number=self.reserve_number(self.party('companies',inv['company_id']),'INV',d['issue_date'],custom)
             inv['number']=number;inv['status']='issued'
             html=render_document(inv)
             pdf=self.pdf_renderer(html)
@@ -871,9 +878,13 @@ class Store:
         with self.lock, self.db:
             self.db.execute('BEGIN IMMEDIATE')
             key=text(data.get('request_key'),'Payment request key',100,True)
-            duplicate=self.db.execute('SELECT invoice_id FROM payments WHERE request_key=?',(key,)).fetchone()
+            duplicate=self.db.execute('SELECT p.*,i.currency FROM payments p JOIN invoices i ON i.id=p.invoice_id WHERE p.request_key=?',(key,)).fetchone()
             if duplicate:
                 if duplicate['invoice_id']!=id:raise ValidationError('Payment request key already used.')
+                previous=json.loads(duplicate['data'])
+                same=(amount_minor(data.get('amount'),duplicate['currency'])==duplicate['amount_minor'] and amount_minor(data.get('withholding') or '0',duplicate['currency'])==previous.get('withholding_minor',0) and date(data.get('date'),'Payment date')==previous['date'] and text(data.get('method'),'Payment method',120,True)==previous['method'] and text(data.get('reference'),'Payment reference',200)==previous.get('reference','') and (not data.get('number') or text(data['number'],'Receipt number',80)==duplicate['number']))
+                same=same and (data.get('link_bank_id') or None)==previous.get('linked_bank_id') and (data.get('separate_payment_confirmed') is True)==previous.get('separate_payment_confirmed',False)
+                if not same:raise ValidationError('This payment was already recorded with different details. Reopen the invoice to review its saved receipt before recording another payment.')
                 return self.invoice(id)
             inv=self.invoice(id)
             if inv['kind']!='sale':raise ValidationError('Supplier payments belong in Expense journal. Payable payment documents are no longer available.')
@@ -883,8 +894,12 @@ class Store:
             if not 0<amount or amount+withheld>inv['balance_minor']:raise ValidationError('Payment amount must be positive, and payment plus withholding cannot exceed the outstanding balance.')
             paid_date=date(data.get('date'),'Payment date')
             if paid_date<inv['data']['issue_date'] or paid_date>dt.date.today().isoformat():raise ValidationError('Payment date must be between the invoice date and today.')
-            details=dict(date=paid_date,receipt_date=paid_date,withholding_minor=withheld,method=text(data.get('method'),'Payment method',120,True),reference=text(data.get('reference'),'Payment reference',200),confirmed=True)
-            number=self.reserve_number(inv['data']['company'],'RCT',paid_date[:4],data.get('number',''))
+            candidates=[b for b in self.bank_entries() if b['company_id']==inv['company_id'] and b['currency']==inv['currency'] and b['direction']=='in' and b['date']==paid_date and b['amount_minor']==amount and not b['matched_record']]
+            bank=next((b for b in candidates if b['id']==data.get('link_bank_id')),None)
+            if data.get('link_bank_id') and (not bank or bank['revision']!=data.get('bank_revision')):raise ValidationError('The selected bank transaction changed or does not match this payment. Reopen the receipt editor.')
+            if not bank and data.get('separate_payment_confirmed') is not True and any(b['reviewed'] and b['cash_flow'] for b in candidates):raise ValidationError('A bank transaction already records this cash received. Link it below, or confirm this is a separate payment.')
+            details=dict(date=paid_date,receipt_date=paid_date,withholding_minor=withheld,method=text(data.get('method'),'Payment method',120,True),reference=text(data.get('reference'),'Payment reference',200),confirmed=True,linked_bank_id=bank['id'] if bank else None,separate_payment_confirmed=data.get('separate_payment_confirmed') is True)
+            number=self.reserve_number(inv['data']['company'],'RCT',paid_date,data.get('number',''))
             created=dt.datetime.now(dt.timezone.utc).isoformat()
             pid=self.db.execute('INSERT INTO payments(invoice_id,number,amount_minor,data,created,request_key) VALUES(?,?,?,?,?,?)',(id,number,amount,json.dumps(details,ensure_ascii=False),created,key)).lastrowid
             inv=self.invoice(id)
@@ -893,6 +908,7 @@ class Store:
             html=render_document(inv,payment=payment)
             pdf=self.pdf_renderer(html)
             self.db.execute('UPDATE payments SET html=?,pdf=? WHERE id=?',(html,pdf,pid))
+            if bank:self.save_bank_entry(dict(bank,amount=str(Decimal(bank['amount_minor'])/(10**CURRENCIES[bank['currency']])),matched_record='payment:'+str(pid),cash_flow=False,category='income' if bank['category']=='unclassified' else bank['category']))
             self.event('record_payment',id,f'{number}: payment {amount}, withholding {withheld} {inv["currency"]} minor units')
             return self.invoice(id)
 
@@ -913,6 +929,10 @@ class Store:
             if not p or p['reversed']:raise ValidationError('Active payment not found.')
             reason=text(reason,'Reversal reason',500,True)
             self.db.execute('UPDATE payments SET reversed=?,reverse_reason=? WHERE id=?',(dt.datetime.now(dt.timezone.utc).isoformat(),reason,pid))
+            for bank in self.db.execute("SELECT id,data FROM bank_entries WHERE json_extract(data,'$.matched_record')=?",('payment:'+str(pid),)).fetchall():
+                item=json.loads(bank['data']);item.update(matched_record='',reviewed=False,cash_flow=False)
+                self.db.execute('UPDATE bank_entries SET data=?,revision=revision+1 WHERE id=?',(json.dumps(item,ensure_ascii=False),bank['id']))
+                self.event('review_reversed_payment_link',bank['id'],p['number']+' reversed; bank transaction needs review.')
             self.event('reverse_payment',id,p['number']+': '+reason)
         return self.invoice(id)
 
@@ -1080,7 +1100,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header('Cache-Control','no-store')
         self.send_header('X-Content-Type-Options','nosniff')
         self.send_header('Referrer-Policy','no-referrer')
-        policy="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'self'; object-src 'self'; base-uri 'none'; form-action 'self'"
+        policy="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; frame-src 'self' blob:; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'self'; object-src 'self'; base-uri 'none'; form-action 'self'"
         if self.path.startswith('/document/') and media.startswith('text/html'):
             policy="sandbox allow-scripts allow-modals; default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; font-src data:; img-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'"
         self.send_header('Content-Security-Policy',policy)
@@ -1183,6 +1203,11 @@ class Handler(BaseHTTPRequestHandler):
         if self.headers.get('Origin')!=f'http://127.0.0.1:{self.server.server_port}':return self.send(403,{'error':'Request origin rejected.'})
         try:
             n=int(self.headers.get('Content-Length','0'))
+            if urllib.parse.urlsplit(self.path).path=='/api/restore' and self.headers.get_content_type()=='application/vnd.sqlite3':
+                if n<=0:raise ValidationError('Choose a LocalBooks backup.')
+                content=self.rfile.read(n)
+                if len(content)!=n:raise ValidationError('The backup upload was incomplete. Try again.')
+                return self.send(200,self.server.store.restore(content,self.headers.get('X-LocalBooks-Confirmation','')))
             if not 0<n<=150*1024*1024:raise ValidationError('Request is too large or empty.')
             data=json.loads(self.rfile.read(n))
             s=self.server.store;p=urllib.parse.urlsplit(self.path).path

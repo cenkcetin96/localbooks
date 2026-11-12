@@ -87,7 +87,7 @@
 
 .paper-logo.image, .paper-signatures img { filter: grayscale(1); }
 
-/* Receipts use a compact single-page layout, with readable fit limits at export. */
+/* Compact receipts prefer one page; longer receipts paginate without hiding content. */
 .paper-receipt { padding-top: 30pt; font-size: 8.5pt; line-height: 11.5pt; }
 .paper-receipt .paper-header { min-height: 46pt; }
 .paper-receipt h1 { font-size: 24pt; line-height: 28pt; }

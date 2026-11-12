@@ -26,3 +26,12 @@ console.log('Attachment company mismatch helper checks passed.');
 
 assert.equal(ctx.expensePaymentState({payment_status:'unknown',amount_minor:10000,linked_cash_minor:5000}),'partial');
 assert.equal(ctx.expensePaymentState({payment_status:'unknown',amount_minor:10000,linked_cash_minor:10000}),'paid');
+
+state.invoices=[{kind:'sale',status:'issued',company_id:1,currency:'THB',payments:[{amount_minor:9700,data:{date:'2026-11-02'},reversed:null}]}];
+const deposit={company_id:1,currency:'THB',direction:'in',date:'2026-11-02',amount_minor:9700};
+assert.equal(ctx.bankCashCollision(deposit),true,'Existing receipts require a link or distinct-payment confirmation');
+assert.equal(ctx.bankCashCollision({...deposit,company_id:2}),false);
+assert.equal(ctx.bankCashCollision({...deposit,amount_minor:10000}),false,'Cash excludes customer withholding');
+state.invoices[0].payments[0].reversed='2026-11-12';
+assert.equal(ctx.bankCashCollision(deposit),false,'Reversed receipts cannot block a new bank cash classification');
+console.log('Bank cash collision checks include active receipts and exclude reversals.');

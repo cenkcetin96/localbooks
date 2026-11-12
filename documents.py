@@ -9,7 +9,7 @@ import subprocess
 import tempfile
 
 ROOT=Path(__file__).resolve().parent
-SYMBOLS={'THB':'฿','USD':'$','EUR':'€','GBP':'£','SGD':'S$','AUD':'A$','CAD':'C$','JPY':'¥','KWD':'KWD '}
+SYMBOLS={'THB':'THB ','USD':'$','EUR':'€','GBP':'£','SGD':'S$','AUD':'A$','CAD':'C$','JPY':'¥','KWD':'KWD '}
 PLACES={'JPY':0,'KWD':3}
 from local_tools import tool, browser
 CHROME=browser()
@@ -42,7 +42,11 @@ def signature_party(p):
 def bank_account(p):
     fields=[('Bank', 'bank_name'),('Account name', 'bank_account_name'),('Account number', 'bank_account_number'),('Branch', 'bank_branch'),('SWIFT/BIC', 'bank_swift')]
     rows=''.join(f'<div><span>{label}: </span>{e(p[key])}</div>' for label,key in fields if p.get(key))
-    return '<section class="paper-extra paper-bank"><b>Bank account / บัญชีธนาคาร</b>'+rows+'</section>' if rows else ''
+    logo=''
+    if p.get('bank_swift','').upper().startswith('KASITHBK') or 'kasikorn' in p.get('bank_name','').lower() or 'กสิกร' in p.get('bank_name',''):
+        data=base64.b64encode((ROOT/'static/banks/kasikorn.svg').read_bytes()).decode()
+        logo=f'<img class="bank-logo" alt="Kasikorn Bank logo" src="data:image/svg+xml;base64,{data}">'
+    return '<section class="paper-extra paper-bank">'+logo+'<b>Bank account / บัญชีธนาคาร</b>'+rows+'</section>' if rows else ''
 
 def render_document(inv,payment=None,draft=False):
     if inv['kind']!='sale':raise ValueError('Only sales invoices and receipts can be generated. Upload supplier documents through Expense journal.')
@@ -133,7 +137,8 @@ if(singlePageReceipt){
   content.style.width=(100/scale)+'%';content.style.transformOrigin='top left';content.style.transform=`scale(${scale})`;
   if(fits()){source.remove();pages[0].querySelector('.paper-footer').lastElementChild.textContent='Page 1 of 1';document.documentElement.dataset.ready='true';return}
  }
- throw new Error('Receipt exceeds one page at a readable size. Shorten item descriptions or payment references before recording the payment. Nothing has been recorded.');
+ // Long invoices and payment histories must still be payable. Reuse the normal pagination.
+ source.append(...content.children);content.removeAttribute('style');pages[0].classList.remove('receipt-tight');
 }
 function fitsWithSignatures(){if(!signatures)return fits();const copy=signatures.cloneNode(true);content.append(copy);const result=fits();copy.remove();return result}
 function place(block){
