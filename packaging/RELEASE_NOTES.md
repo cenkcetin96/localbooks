@@ -34,4 +34,4 @@ LocalBooks helps organize business compliance preparation; your accountant confi
 
 By [Cenk Cetin](https://cenkcetin.com) · [FGC](https://fgc.co.th)
 
-**Other downloads:** `SHA256SUMS.txt` contains file checksums. The two sources ZIP files contain upstream sources and build recipes for bundled open-source tools, Chromium and FFmpeg. They are for developers and license compliance; you do not need them to install the app.
+**Other downloads:** `SHA256SUMS.txt` contains file checksums. The source archive contains upstream sources and build recipes for bundled open-source tools, Chromium and FFmpeg. They are for developers and license compliance; you do not need them to install the app.
