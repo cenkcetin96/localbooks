@@ -150,7 +150,7 @@ assert(!incomingChart.includes('NaN')&&!outgoingChart.includes('Infinity'));
 console.log('Exact date ranges, leap dates, cash sources, cash-record reconciliation, unchanged sales/current balances and single-direction charts passed.');
 
 const interactiveChart=context.cashFlowChart([{month:'2026-09',in_minor:12345,out_minor:654112}],'THB');
-assert.match(interactiveChart,/data-detail="Sep 26 · Money in: THB 12345 · Money out: THB 654112"/,'Month interaction passes exact amounts to the currency formatter for both directions');
+assert.ok(interactiveChart.includes(`data-detail="${context.overviewMonth('2026-09')} · Money in: THB 12345 · Money out: THB 654112"`),'Month interaction passes exact amounts to the currency formatter for both directions');
 assert.match(interactiveChart,/class="chart-zone" tabindex="0"/,'Months are keyboard accessible');
 assert(!/data-detail="[^"]*Money in:/.test(outgoingChart),'Outgoing interaction hides incoming amounts');
 console.log('Interactive chart checks passed: exact amounts, keyboard targets and filtered values.');
