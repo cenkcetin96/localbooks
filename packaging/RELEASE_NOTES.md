@@ -1,23 +1,20 @@
 LocalBooks puts invoices, receipts, expenses and accountant-ready records on your MacBook. Built for Thai and expat SME owners and managers. Free, open source and MIT licensed.
 
-[**Download LocalBooks for Mac — no Terminal needed**](https://github.com/cenkcetin96/localbooks/releases/download/v1.1.1/LocalBooks-1.1.1-macOS-AppleSilicon.dmg)
+[**Download LocalBooks for Mac — no Terminal needed**](https://github.com/cenkcetin96/localbooks/releases/download/v1.2.0/LocalBooks-1.2.0-macOS-AppleSilicon.dmg)
 
-### What changed in 1.1.1
+### What changed in 1.2.0
 
-- Prevent double-counting bank deposits and invoice receipts. Link matching deposits directly when recording a receipt, or confirm that matching amounts are separate payments.
-- Reversing a linked receipt returns the bank transaction to Needs review. Changed retries after a lost response now show an explicit error and refresh saved records.
-- Protect unsaved edits and in-progress saves/imports. Cancelled scans cannot replace newer work.
-- Restore large backups directly in the app, keeping file validation, confirmation and an automatic safety copy.
-- View supplier originals while reviewing expenses. Saved expenses return to their highlighted row, including on later pages.
-- Long receipts paginate instead of blocking payment; short receipts still prefer one page.
-- Filter Overview by month, custom dates and cash source. Clickable stat cards stay highlighted; chart months show exact values on hover, tap or keyboard focus.
-- Simplify Backup & restore, remove redundant overview controls, and support monthly invoice numbering.
+- Keep a chart of accounts for each company. Open the **Accountant** tab on invoices, receipts, expenses, and bank transactions to review automatic debit and credit suggestions or save a balanced manual entry.
+- Calculate account movements and balances by date and currency, then export them as CSV.
+- Review Thai reporting mappings, group saved THB movements by DBD category, and include P.N.D.2 in withholding worksheets when applicable.
+- Export accounting entries, the chart of accounts, Thai reporting mappings, and DBD movements in the company’s accountant pack.
+- Find receipts by company code and payment month, with numbers such as `DEMO-RE-2026-11-00001`. The suggested full payment adjusts for withholding until you edit the payment amount.
 
 Existing records and previously issued PDFs remain in place. Download a backup, quit LocalBooks, then replace the app in Applications and reopen it.
 
 ### Download and install — no Terminal needed
 
-1. Download **LocalBooks-1.1.1-macOS-AppleSilicon.dmg** below. Requires an Apple Silicon Mac (M1 or newer) running **macOS 15 Sequoia or later**. Check **Apple menu → About This Mac**.
+1. Download **LocalBooks-1.2.0-macOS-AppleSilicon.dmg** below. Requires an Apple Silicon Mac (M1 or newer) running **macOS 15 Sequoia or later**. Check **Apple menu → About This Mac**.
 2. Open the downloaded file and drag **LocalBooks** onto **Applications**.
 3. Open **Applications → LocalBooks**. If macOS blocks it, choose **Done**, then **System Settings → Privacy & Security → Open Anyway**, and confirm **Open**. This community build is not Apple notarized. See [Apple’s instructions](https://support.apple.com/en-us/102445).
 4. Add your company and customer, then create your first invoice. The [short onboarding tour](https://github.com/cenkcetin96/localbooks#five-minute-onboarding-tour) walks you through the rest.

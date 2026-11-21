@@ -1,14 +1,14 @@
 """Exercise an already-launched isolated native package; never uses real data."""
 import base64
 import datetime as dt
-import hashlib
+import io
 import json
 from pathlib import Path
-import sqlite3
 import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+import zipfile
 
 def main():
     root=Path(sys.argv[1] if len(sys.argv)>1 else '/tmp/LocalBooks-final-package-qa')
@@ -35,10 +35,29 @@ def main():
     invoice,_=request('/api/issue',dict(id=invoice['id'],revision=invoice['revision']));checks.append('Packaged Chrome PDF generation and numbering')
     invoice,_=request('/api/payment',dict(id=invoice['id'],amount='0.01',date=dt.date.today().isoformat(),method='Test only',request_key='package-smoke'))
     assert invoice['payment_status']=='paid';checks.append('Packaged receipt generation and full payment')
-    pdf,_=request('/document/payment/'+str(invoice['payments'][0]['id'])+'/pdf');assert pdf.startswith(b'%PDF')
+    receipt = invoice['payments'][0]
+    receipt_number = f"QA-RE-{data['issue_date'][:7]}-00001"
+    assert receipt['number'] == receipt_number
+    pdf, headers = request(f"/document/payment/{receipt['id']}/pdf")
+    assert pdf.startswith(b'%PDF') and f'{receipt_number}.pdf' in headers['Content-Disposition']
     html,headers=request('/document/invoice/'+str(invoice['id'])+'/html');assert 'sandbox allow-scripts' in headers['Content-Security-Policy'];checks.append('Saved PDF retrieval and sandboxed HTML preview')
     invoice,_=request('/api/attach',dict(id=invoice['id'],payment_id=invoice['payments'][0]['id'],name='proof.txt',content=base64.b64encode(b'package proof').decode()))
     attached,_=request('/attachment/'+str(invoice['attachments'][0]['id']));assert attached==b'package proof';checks.append('Packaged linked attachment round trip')
+    company_id, invoice_id = c['id'], invoice['id']
+    work, _ = request(f'/api/accounting?company={company_id}&kind=invoice&id={invoice_id}')
+    saved, _ = request('/api/accounting/entry', dict(work['automatic'], company_id=company_id, source_kind='invoice', source_id=invoice_id, revision=work['revision']))
+    assert saved['saved'] and sum(line['debit_minor'] for line in saved['entry']['lines']) == 1
+    assert sum(line['credit_minor'] for line in saved['entry']['lines']) == 1
+    mappings, _ = request(f'/api/accounting/thai?company={company_id}')
+    assert 'pnd2' in mappings['forms'] and len(mappings['accounts']) == 39
+    for script in ('accounting.js', 'thai-reporting.js'):
+        body, _ = request(f'/static/{script}')
+        assert body
+    pack, _ = request(f"/api/compliance/export?company={company_id}&year={data['issue_date'][:4]}")
+    with zipfile.ZipFile(io.BytesIO(pack)) as archive:
+        assert archive.read(f"receipts/{receipt['id']}/{receipt_number}.pdf") == pdf
+        assert {'accounting-entries.csv', 'thai-reporting-mappings.csv', 'dbd-mapped-movements.csv'} <= set(archive.namelist())
+    checks.append('Packaged accounting, Thai reporting mappings and accountant export')
     backup,_=request('/api/backup');assert backup.startswith(b'SQLite format 3\0')
     request('/api/restore',dict(content=base64.b64encode(b'bad').decode(),confirmation='RESTORE'),expected=400)
     restored,_=request('/api/restore',dict(content=base64.b64encode(backup).decode(),confirmation='RESTORE'));assert Path(restored['safety_copy']).exists();checks.append('Packaged backup validation, restore, and safety copy')
