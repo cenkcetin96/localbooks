@@ -18,8 +18,8 @@ Leave year-end unconfirmed until it has been checked. Changing the accounting pe
 
 ## Accountant handoff
 
-Use **Export accountant pack** for the company and accounting year. The ZIP includes source records, worksheets, statuses, missing-document requests, available PDFs/originals and a hash manifest. It is a review package, not a submitted return, official filing import or audited accounts.
+Use **Export accountant pack** for the company and accounting year. The ZIP includes source records, worksheets, statuses, missing-document requests, available PDFs/originals, accounting entries, the chart of accounts, Thai reporting mappings, DBD mapped movements and a hash manifest. It is a review package, not a submitted return, official filing import or audited accounts.
 
-VAT, withholding and corporate tax worksheets require explicit reviewed inputs. Current company settings do not prove previous registration or payroll history. Filing tasks start Unknown. Baseline dates in the app need verification against current official guidance, holiday rules and any applicable extensions. Consult the [Revenue Department](https://www.rd.go.th) and [Department of Business Development](https://www.dbd.go.th), together with your accountant.
+VAT, withholding and corporate tax worksheets require explicit reviewed inputs. Use [Thai reporting mappings](README.md#thai-reporting-mappings) to review account classifications and conditional filing references with your accountant. Current company settings do not prove previous registration or payroll history. Filing tasks start Unknown. Baseline dates in the app need verification against current official guidance, holiday rules and any applicable extensions. Consult the [Revenue Department](https://www.rd.go.th) and [Department of Business Development](https://www.dbd.go.th), together with your accountant.
 
-LocalBooks does not submit returns, calculate payroll, create a double-entry general ledger or certify legal compliance. Missing-document checks cover saved records and cannot establish that the books are complete.
+Use the missing-document checks to review saved records before sending the pack to your accountant. Your accountant confirms completeness, prepares final accounts and handles filings.

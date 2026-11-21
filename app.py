@@ -32,6 +32,8 @@ from scan import scan_document, file_type, ScanError
 from statements import scan_statement,match_key,csv_text,clean_bank_description,MAX_ROWS
 import compliance
 import reconciliation
+import accounting
+import thai_reporting
 
 ROOT = Path(__file__).resolve().parent
 MAX_FILE = 20 * 1024 * 1024
@@ -133,6 +135,8 @@ CREATE INDEX IF NOT EXISTS bank_entry_cash ON bank_entries(json_extract(data,'$.
 '''
 
 SCHEMA += compliance.SCHEMA
+SCHEMA += accounting.SCHEMA
+SCHEMA += thai_reporting.SCHEMA
 
 
 class Store:
@@ -685,7 +689,7 @@ class Store:
     def save_journal(self, data):
         entry_id=data.get('id')
         if entry_id is not None:
-            with self.lock:existing=self.db.execute('SELECT name,content FROM journal_entries WHERE id=?',(entry_id,)).fetchone()
+            with self.lock:existing=self.db.execute('SELECT name,content,company_id FROM journal_entries WHERE id=?',(entry_id,)).fetchone()
             if not existing:raise ValidationError('Journal entry not found.')
             content=existing['content'];data={**data,'name':existing['name']}
         else:
@@ -713,6 +717,7 @@ class Store:
         digest=hashlib.sha256(content).hexdigest()
         with self.transaction():
             company=self.party('companies',data.get('company_id'))
+            if entry_id and existing['company_id']!=company['id'] and self.db.execute("SELECT 1 FROM accounting_entries WHERE source_kind='expense' AND source_id=?",(entry_id,)).fetchone():raise ValidationError('This expense has a saved accounting entry. Keep it in its original company.')
             if self.db.execute('SELECT 1 FROM journal_entries WHERE company_id=? AND sha256=? AND id!=?',(company['id'],digest,entry_id or 0)).fetchone():raise ValidationError('This file is already in this company’s journal.')
             if not entry_id and self.db.execute('SELECT 1 FROM journal_attachments a JOIN journal_entries e ON e.id=a.journal_id WHERE e.company_id=? AND a.sha256=?',(company['id'],digest)).fetchone():raise ValidationError('This file is already attached to an expense. Open its documents instead of creating another expense.')
             previous=json.loads(self.db.execute('SELECT data FROM journal_entries WHERE id=?',(entry_id,)).fetchone()[0]) if entry_id else {}
@@ -772,6 +777,33 @@ class Store:
         out['payment_status'] = 'paid' if out['balance_minor']==0 else ('partial' if out['paid_minor'] else 'unpaid')
         out['attachments'] = [dict(x) for x in self.db.execute("SELECT a.id,a.payment_id,a.name,a.media_type,a.sha256,a.created,length(a.content) size,coalesce(m.value,'general') AS category FROM attachments a LEFT JOIN metadata m ON m.key='attachment_type:' || a.id WHERE a.invoice_id=?",(id,))]
         return out
+
+    def receipt_pdf_filename(self, payment_id):
+        receipt = self.db.execute("""
+            SELECT i.company_id,
+                   coalesce(nullif(json_extract(i.data,'$.company.code'),''), json_extract(c.data,'$.code')) AS code,
+                   substr(json_extract(p.data,'$.date'),1,7) AS month,
+                   p.number
+            FROM payments p JOIN invoices i ON i.id=p.invoice_id
+            JOIN companies c ON c.id=i.company_id
+            WHERE p.id=?
+        """, (payment_id,)).fetchone()
+        month = receipt['month']
+        if re.fullmatch(r'[A-Z0-9-]+-RE-'+re.escape(month)+r'-[0-9]{5,}',receipt['number']):
+            return receipt['number']+'.pdf'
+        sequence = self.receipt_month_count(receipt['company_id'],month,payment_id)
+        code = receipt['code']
+        if not isinstance(code,str) or not re.fullmatch(r'[A-Z0-9-]+',code):
+            code = f"COMPANY-{receipt['company_id']}"
+        return f'{code}-RE-{month}-{sequence:05d}.pdf'
+
+    def receipt_month_count(self, company_id, month, through_payment=None):
+        # Reversed receipts still occupy their original position in the sequence.
+        return self.db.execute("""
+            SELECT count(*) FROM payments p JOIN invoices i ON i.id=p.invoice_id
+            WHERE i.company_id=? AND substr(json_extract(p.data,'$.date'),1,7)=?
+              AND p.id<=coalesce(?,p.id)
+        """, (company_id,month,through_payment)).fetchone()[0]
 
     def state(self):
         with self.lock:
@@ -835,11 +867,13 @@ class Store:
             try:self.db.execute('INSERT INTO numbers VALUES(?,?)',(company['id'],number))
             except sqlite3.IntegrityError:raise ValidationError('That document number is already used. Choose another number.')
             return number
-        monthly=prefix=='INV' and company.get('invoice_number_format')=='monthly'
+        monthly=prefix=='RE' or (prefix=='INV' and company.get('invoice_number_format')=='monthly')
         year=issue_date[:7].replace('-','') if monthly else issue_date[:4]
-        if monthly:prefix='IV'
+        if monthly and prefix=='INV':prefix='IV'
         row=self.db.execute('SELECT next FROM counters WHERE company_id=? AND prefix=? AND year=?',(company['id'],prefix,year)).fetchone()
         n=row['next'] if row else 1
+        if prefix=='RE':
+            n=max(n,self.receipt_month_count(company['id'],issue_date[:7])+1)
         while True:
             number=f"{company['code']}-{prefix}-{issue_date[:7]}-{n:05d}" if monthly else f"{company['code']}-{prefix}-{year}-{n:04d}"
             n+=1
@@ -899,7 +933,7 @@ class Store:
             if data.get('link_bank_id') and (not bank or bank['revision']!=data.get('bank_revision')):raise ValidationError('The selected bank transaction changed or does not match this payment. Reopen the receipt editor.')
             if not bank and data.get('separate_payment_confirmed') is not True and any(b['reviewed'] and b['cash_flow'] for b in candidates):raise ValidationError('A bank transaction already records this cash received. Link it below, or confirm this is a separate payment.')
             details=dict(date=paid_date,receipt_date=paid_date,withholding_minor=withheld,method=text(data.get('method'),'Payment method',120,True),reference=text(data.get('reference'),'Payment reference',200),confirmed=True,linked_bank_id=bank['id'] if bank else None,separate_payment_confirmed=data.get('separate_payment_confirmed') is True)
-            number=self.reserve_number(inv['data']['company'],'RCT',paid_date,data.get('number',''))
+            number=self.reserve_number(inv['data']['company'],'RE',paid_date,data.get('number',''))
             created=dt.datetime.now(dt.timezone.utc).isoformat()
             pid=self.db.execute('INSERT INTO payments(invoice_id,number,amount_minor,data,created,request_key) VALUES(?,?,?,?,?,?)',(id,number,amount,json.dumps(details,ensure_ascii=False),created,key)).lastrowid
             inv=self.invoice(id)
@@ -972,10 +1006,12 @@ class Store:
                 if db.execute("SELECT value FROM metadata WHERE key='format'").fetchone()!=('localbooks-v1',):raise ValidationError('Unsupported backup version.')
                 expected={r[0]:r[1] for r in self.db.execute("SELECT name,sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")}
                 actual={r[0]:r[1] for r in db.execute("SELECT name,sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")}
-                optional={'journal_entries','journal_attachments','bank_statements','bank_entries','bank_attachments'} | compliance.TABLES
+                optional={'journal_entries','journal_attachments','bank_statements','bank_entries','bank_attachments'} | compliance.TABLES | accounting.TABLES | thai_reporting.TABLES
                 if any(k not in expected or expected[k]!=v for k,v in actual.items()) or any(k not in actual for k in expected if k not in optional) or bool(set(actual)&{'bank_statements','bank_entries','bank_attachments'}) and not {'bank_statements','bank_entries','bank_attachments'}.issubset(actual) or db.execute("SELECT count(*) FROM sqlite_master WHERE type IN ('trigger','view')").fetchone()[0]:raise ValidationError('Backup schema does not match this app.')
                 if db.execute('PRAGMA foreign_key_check').fetchall():raise ValidationError('Backup contains broken document links.')
                 compliance.validate_backup(db,set(actual))
+                accounting.validate_backup(db,set(actual))
+                thai_reporting.validate_backup(db,set(actual))
                 company_ids={r[0] for r in db.execute('SELECT id FROM companies')}
                 def valid_company_ids(item):
                     if 'company_ids' in item and (not isinstance(item['company_ids'],list) or not item['company_ids'] or any(type(id) is not int or id not in company_ids for id in item['company_ids'])):raise ValidationError('Backup contains invalid company assignments.')
@@ -1133,6 +1169,26 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(200,{'version':version.hexdigest()})
             if u.path=='/api/state':return self.send(200,store.state())
             if u.path=='/api/backup':return self.send(200,store.backup(),'application/vnd.sqlite3',f'LocalBooks-{dt.date.today()}.sqlite3')
+            if u.path in ('/api/accounting/thai','/api/accounting/thai/export','/api/accounting/thai/report','/api/accounting/thai/report/export'):
+                params=urllib.parse.parse_qs(u.query);company=int(params.get('company',['0'])[0])
+                if '/report' in u.path:
+                    result=thai_reporting.report(store,company,params.get('start',[''])[0],params.get('end',[''])[0])
+                    if u.path.endswith('/export'):return self.send(200,thai_reporting.csv_bytes(thai_reporting.report_rows(result)),'text/csv; charset=utf-8','LocalBooks-DBD-mapped-movements.csv')
+                else:
+                    result=thai_reporting.workspace(store,company)
+                    if u.path.endswith('/export'):return self.send(200,thai_reporting.csv_bytes(thai_reporting.mappings_rows(result)),'text/csv; charset=utf-8','LocalBooks-Thai-reporting-mappings.csv')
+                return self.send(200,result)
+            if u.path in ('/api/accounting/balances','/api/accounting/balances/export'):
+                params=urllib.parse.parse_qs(u.query)
+                report=accounting.balances(store,int(params.get('company',['0'])[0]),params.get('start',[''])[0],params.get('end',[''])[0],params.get('currency',['THB'])[0])
+                if u.path.endswith('/export'):return self.send(200,accounting.balances_csv(report),'text/csv; charset=utf-8','LocalBooks-account-balances.csv')
+                return self.send(200,report)
+            if u.path in ('/api/accounting','/api/accounting/accounts'):
+                params=urllib.parse.parse_qs(u.query)
+                company=int(params.get('company',['0'])[0])
+                with store.lock:
+                    if u.path.endswith('/accounts'):return self.send(200,{'accounts':accounting.accounts(store,company),'mappings':accounting.mappings(store,company)})
+                    return self.send(200,accounting.workspace(store,params.get('kind',[''])[0],int(params.get('id',['0'])[0]),company))
             if u.path in ('/api/compliance','/api/compliance/export'):
                 params=urllib.parse.parse_qs(u.query)
                 company=compliance.integer(params.get('company',[''])[0],1,2147483647)
@@ -1187,7 +1243,10 @@ class Handler(BaseHTTPRequestHandler):
                         inv['data']['company'].update({k:store.party('companies',inv['company_id']).get(k,'') for k in DOCUMENT_COMPANY_FIELDS})
                         content=render_document(inv,draft=True)
                         if format=='pdf':content=store.pdf_renderer(content)
-                return self.send(200,content,'application/pdf' if format=='pdf' else 'text/html; charset=utf-8',(row['number'] or 'Draft')+'.pdf' if format=='pdf' else None)
+                    filename = None
+                    if format=='pdf':
+                        filename = store.receipt_pdf_filename(row['id']) if kind=='payment' else (row['number'] or 'Draft')+'.pdf'
+                return self.send(200,content,'application/pdf' if format=='pdf' else 'text/html; charset=utf-8',filename)
             p=ROOT/'static'/('index.html' if u.path=='/' else u.path.removeprefix('/static/'))
             if (u.path=='/' or u.path.startswith('/static/')) and p.resolve().is_relative_to((ROOT/'static').resolve()) and p.is_file():
                 content=p.read_bytes()
@@ -1216,6 +1275,11 @@ class Handler(BaseHTTPRequestHandler):
             elif p=='/api/compliance/profile':result=compliance.save_profile(s,data)
             elif p=='/api/compliance/record':result=compliance.save_record(s,data)
             elif p=='/api/compliance/attach':result=compliance.attach(s,data)
+            elif p=='/api/accounting/account':result=accounting.save_account(s,data)
+            elif p=='/api/accounting/entry':result=accounting.save_entry(s,data)
+            elif p=='/api/accounting/mappings':result=accounting.save_mappings(s,data)
+            elif p=='/api/accounting/thai/profile':result=thai_reporting.save_profile(s,data)
+            elif p=='/api/accounting/thai/mapping':result=thai_reporting.save_mapping(s,data)
             elif p=='/api/scan':
                 try:raw=base64.b64decode(data.get('content',''),validate=True)
                 except (ValueError,TypeError):raise ValidationError('Invalid file encoding.')

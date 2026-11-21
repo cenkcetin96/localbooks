@@ -12,6 +12,8 @@ from pathlib import Path
 import re
 import secrets
 import zipfile
+import accounting
+import thai_reporting
 
 from scan import file_type
 
@@ -133,6 +135,7 @@ def tasks(p, year):
         for form, title, due_day, applies in [
             ('pp30', 'P.P.30 · VAT', 15, 'Expected from current VAT setting' if p['vat_registered'] else 'Review VAT registration dates'),
             ('pnd3', 'P.N.D.3 · Individual payees', 7, 'If applicable withholding payments occurred'),
+            ('pnd2', 'P.N.D.2 · Individual interest / royalty / dividend payees', 7, 'If applicable section 40(3)–(4) withholding payments occurred'),
             ('pnd53', 'P.N.D.53 · Company payees', 7, 'If applicable withholding payments occurred'),
             ('pnd1', 'P.N.D.1 · Payroll withholding', 7, 'Expected from current payroll setting' if p['employees'] else 'Review whether payroll existed'),
             ('sso', 'Social Security · Payroll', 0, 'Expected from current payroll setting' if p['employees'] else 'Review whether employees existed'),
@@ -187,7 +190,7 @@ def calculation(data):
         out.update(payment_date=day(data.get('payment_date')), payee=text(data.get('payee'), 200, True),
                    tax_id=text(data.get('tax_id'), 80, True), income_category=text(data.get('income_category'), 200, True),
                    source=text(data.get('source'), 200, True), form=data.get('form'))
-        if out['form'] not in ('pnd3', 'pnd53', 'pnd54'):raise ValueError('Select a withholding return.')
+        if out['form'] not in ('pnd2', 'pnd3', 'pnd53', 'pnd54'):raise ValueError('Select a withholding return.')
         out['tax_base'] = money(data.get('tax_base'))
         try:
             rate = Decimal(str(data.get('rate')))
@@ -302,7 +305,7 @@ def workspace(store, company_id, year):
             if task['kind'] != 'filing':continue
             form, _, month = task['key'].partition(':')
             linked = []
-            if form in ('pnd3', 'pnd53'):
+            if form in ('pnd2', 'pnd3', 'pnd53'):
                 linked = [r for r in items if r['kind'] == 'wht' and r['form'] == form and r['payment_date'].startswith(month) and not r.get('excluded')]
             elif form == 'pp30':linked = [r for r in items if r['kind'] == 'vat' and r['month'] == month]
             elif form in ('pnd50','pnd51'):linked = [r for r in items if r['kind'] == 'cit' and r['stage'] == ('annual' if form == 'pnd50' else 'half_year')]
@@ -399,6 +402,16 @@ def export_pack(store, company_id, year):
             def filename(name):return re.sub(r'[^\w. -]', '_', Path(name).name)[:160] or 'document'
             write('README.txt', f"LocalBooks accountant review pack\nCompany: {work['company']['name']}\nPeriod: {work['window']['start']} to {work['window']['end']}\nYear-end confirmed: {work['profile']['year_end_confirmed']}\nGenerated: {dt.datetime.now(dt.timezone.utc).isoformat()}\n\nWorking papers only. No tax return has been submitted by this app. Unknown means unverified, not unfiled. Baseline dates exclude online extensions and holiday adjustments. Confirm applicability, tax points, eligibility, credits and rates with the accountant. Worksheets do not automatically reconcile or post journal entries.\n\nIf year-end is blank, records use a provisional calendar year. If it changes, review both old and new year exports; saved tasks and worksheets are retained under the year where entered. Monthly returns follow full calendar months, even when a fiscal period starts mid-month. Current VAT and payroll settings are not historical evidence.\n\nrecords.json contains complete selected records. CSV monetary source columns explicitly ending in _minor are integer currency units (THB: divide by 100; JPY: 1; KWD: 1000). Worksheet amount columns use THB. Source bank statements and invoice/payment histories may include dates outside the selected period as context, but all records belong to this company. Draft invoices without saved PDF are included as JSON, not rendered as final invoices.\n")
             write('records.json', json.dumps(dict(workspace=work, records=source), ensure_ascii=False, indent=2))
+            entries=accounting.export_records(store,company_id,work['window'])
+            write('accounting-entries.json',json.dumps(entries,ensure_ascii=False,indent=2))
+            thai=thai_reporting.workspace(store,company_id)
+            mapped=thai_reporting.report(store,company_id,work['window']['start'],work['window']['end'])
+            write('thai-reporting-mappings.json',json.dumps(thai,ensure_ascii=False,indent=2))
+            csv_file('thai-reporting-mappings.csv',thai_reporting.mappings_rows(thai))
+            write('dbd-mapped-movements.json',json.dumps(mapped,ensure_ascii=False,indent=2))
+            csv_file('dbd-mapped-movements.csv',thai_reporting.report_rows(mapped))
+            csv_file('chart-of-accounts.csv',[['Code','Account','Type','Active']]+[[a['code'],a['name'],a['type'],a['active']] for a in entries['accounts']])
+            csv_file('accounting-entries.csv',[['Source','Source ID','Date','Book','Mode','Currency','Account code','Debit_minor','Credit_minor','Cost center','Description','Note','Source changed','Inactive source']]+[[e['source_kind'],e['source_id'],e['date'],e['book'],e['mode'],e['currency'],r['code'],r['debit_minor'],r['credit_minor'],r['cost_center'],e['description'],e['note'],e['stale'],e['inactive']] for e in entries['entries'] for r in e['lines']])
             csv_file('filings-and-close.csv', [['Key','Kind','Period','Title','Status','Owner','Verified due','Base due','Filed on','Paid on','Reference','Declared amount THB','Paid amount THB','Notes']] + [[r['key'],r['kind'],r.get('period',''),r.get('title',''),r.get('status',''),r.get('owner',''),r.get('verified_due',''),r.get('base_due',''),r.get('filed_on',''),r.get('paid_on',''),r.get('reference',''),r.get('declared_amount',''),r.get('paid_amount',''),r.get('notes','')] for r in work['items'] if r['kind'] in ('filing','checklist','document')])
             csv_file('missing-documents.csv', [['Source','ID','Period / date','Title','Reason']] + [[r['source'],r['id'],r['date'],r['title'],r['reason']] for r in work['missing']])
             csv_file('sales-and-purchases.csv', [['ID','Kind','Number','Status','Date','Currency','Subtotal_minor','VAT_minor','Total_minor','Contact']] + [[i['id'],i['kind'],i['number'] or '',i['status'],i['data']['issue_date'],i['currency'],i['data'].get('subtotal_minor',''),i['data'].get('vat_minor',0),i['total_minor'],i['data']['contact']['name']] for i in source['invoices']])
@@ -432,7 +445,7 @@ def export_pack(store, company_id, year):
                 if row['html']:write(f"invoices/{i['id']}.html", row['html'], 'invoice', i['id'])
                 for p in i['payments']:
                     raw = store.db.execute('SELECT pdf FROM payments WHERE id=?', (p['id'],)).fetchone()[0]
-                    if raw:write(f"receipts/{p['id']}.pdf", raw, 'payment', p['id'])
+                    if raw:write(f"receipts/{p['id']}/{store.receipt_pdf_filename(p['id'])}", raw, 'payment', p['id'])
                 for a in i['attachments']:
                     raw = store.db.execute('SELECT content FROM attachments WHERE id=?', (a['id'],)).fetchone()[0]
                     write(f"invoice-attachments/{a['id']}-{filename(a['name'])}", raw, 'attachment', a['id'])

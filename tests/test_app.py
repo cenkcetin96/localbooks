@@ -41,7 +41,7 @@ class AppTests(unittest.TestCase):
             self.s.issue(duplicate['id'],custom=invoice['number'],expected_revision=duplicate['revision'])
         self.assertEqual(self.s.invoice(duplicate['id'])['status'],'draft')
         with self.s.db:
-            self.assertEqual(self.s.reserve_number(company,'RCT','2026-11-09'),'DEMO-RCT-2026-0001')
+            self.assertEqual(self.s.reserve_number(company,'RE','2026-11-09'),'DEMO-RE-2026-11-00001')
             other=self.s.save_party('companies',dict(name='Other',code='OTHER'))
             self.assertEqual(self.s.reserve_number(other,'INV','2026-11-09'),'OTHER-INV-2026-0001')
         self.s.save_party('companies',dict(id=company['id'],name=company['name'],code=company['code']))
@@ -58,6 +58,29 @@ class AppTests(unittest.TestCase):
             self.s.db.execute('INSERT INTO counters VALUES(?,?,?,?)',(self.company['id'],'IV','202611',2))
         self.assertEqual(self.issued(issue_date='2026-11-09')['number'],'DEMO-IV-2026-11-00002')
 
+    def test_receipt_pdf_filenames_use_company_and_payment_month(self):
+        invoice = self.issued(issue_date='2025-01-01')
+        first = self.payment(invoice, '10', date='2025-01-20', number='DEMO-RCT-2025-0001')['payments'][-1]
+        self.s.reverse_payment(invoice['id'], first['id'], 'Test reversal')
+
+        other = self.s.save_party('companies', dict(name='Other company', code='OTHER'))
+        customer = self.s.save_party('contacts', dict(name='Other customer', company_id=other['id']))
+        other_invoice = self.issued(company_id=other['id'], contact_id=customer['id'], issue_date='2025-01-01')
+        other_payment = self.payment(other_invoice, '10', 'other', date='2025-01-21')['payments'][-1]
+
+        backdated = self.payment(invoice, '10', 'two', date='2025-01-02')['payments'][-1]
+        next_month = self.payment(invoice, '10', 'three', date='2025-02-01')['payments'][-1]
+        self.assertEqual(first['number'], 'DEMO-RCT-2025-0001')
+        self.assertEqual(backdated['number'], 'DEMO-RE-2025-01-00002')
+        self.assertEqual(next_month['number'], 'DEMO-RE-2025-02-00001')
+        self.assertEqual(self.s.receipt_pdf_filename(first['id']), 'DEMO-RE-2025-01-00001.pdf')
+        self.assertEqual(self.s.receipt_pdf_filename(other_payment['id']), 'OTHER-RE-2025-01-00001.pdf')
+        self.assertEqual(self.s.receipt_pdf_filename(backdated['id']), 'DEMO-RE-2025-01-00002.pdf')
+        self.assertEqual(self.s.receipt_pdf_filename(next_month['id']), 'DEMO-RE-2025-02-00001.pdf')
+        html = self.s.db.execute('SELECT html FROM payments WHERE id=?',(backdated['id'],)).fetchone()[0]
+        self.assertIn('<b>DEMO-RE-2025-01-00002</b>',html)
+        self.assertIn("textContent=documentTitle",html)
+        self.assertIn('Receipt · DEMO-RE-2025-01-00002',html)
 
     def test_duplicate_paid_invoice_is_independent_editable_draft(self):
         today=dt.date.today();old_date=(today-dt.timedelta(days=30)).isoformat()
