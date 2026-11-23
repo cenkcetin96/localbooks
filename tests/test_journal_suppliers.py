@@ -29,6 +29,7 @@ class JournalSupplierTests(unittest.TestCase):
     def test_vendor_exports_match_platform_headers_dates_and_amounts(self):
         payload = self.vendor_export()
         odoo = self.s.export_vendor_bills(payload)
+        self.assertFalse(odoo.startswith(b'\xef\xbb\xbf'))
         row, = csv.DictReader(io.StringIO(odoo.decode()))
         self.assertTrue(row['External ID'].startswith('localbooks.bill_'))
         self.assertEqual(row['Partner'], 'บริษัท ผู้ขาย จำกัด')
@@ -39,7 +40,9 @@ class JournalSupplierTests(unittest.TestCase):
         self.assertEqual(row['Invoice Lines/Taxes'], 'VAT 7%')
         self.assertEqual(self.s.export_vendor_bills(payload), odoo)
         xero = self.s.export_vendor_bills(dict(payload, target='xero'))
-        row, = csv.DictReader(io.StringIO(xero.decode()))
+        self.assertTrue(xero.startswith(b'\xef\xbb\xbf'))
+        row, = csv.DictReader(io.StringIO(xero.decode('utf-8-sig')))
+        self.assertEqual(row['ContactName'], 'บริษัท ผู้ขาย จำกัด')
         self.assertEqual(row['InvoiceNumber'], 'TH-069')
         self.assertEqual(row['InvoiceDate'], '01/11/2026')
         self.assertEqual(row['DueDate'], '01/12/2026')

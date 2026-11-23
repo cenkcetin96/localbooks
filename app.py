@@ -721,7 +721,8 @@ class Store:
             else:
                 writer.writerow([supplier, ref, issue.strftime('%d/%m/%Y'), due.strftime('%d/%m/%Y'),
                                  description, 1, unit, account, tax, vat, currency])
-        return output.getvalue().encode('utf-8')
+        # Xero's bill importer needs the UTF-8 marker to preserve Thai names.
+        return output.getvalue().encode('utf-8-sig' if target == 'xero' else 'utf-8')
 
     def export_bank(self,company='',year=''):
         output=io.StringIO();writer=csv.writer(output);writer.writerow(['Company','Account','Date','Direction','Currency','Amount','Counterparty','Description','Reference','Classification','Review status','Included in cash flow','Matched record','Supporting documents','Statement','Source page','Notes'])

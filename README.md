@@ -8,7 +8,7 @@ Created by [Cenk Cetin](https://cenkcetin.com), with links to [FGC](https://fgc.
 
 ## Download and start — no coding needed
 
-[**Download LocalBooks for Mac — no Terminal needed**](https://github.com/cenkcetin96/localbooks/releases/download/v1.4.0/LocalBooks-1.4.0-macOS-AppleSilicon.dmg)
+[**Download LocalBooks for Mac — no Terminal needed**](https://github.com/cenkcetin96/localbooks/releases/download/v1.4.1/LocalBooks-1.4.1-macOS-AppleSilicon.dmg)
 
 [Release notes and other downloads](https://github.com/cenkcetin96/localbooks/releases/latest)
 

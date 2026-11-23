@@ -44,7 +44,8 @@ def main():
                 saved_vat_minor=3500, currency='THB', due_date='2026-12-23')
     args = dict(company_id=c['id'], account='5299100', tax='QA VAT 7%', bills=[bill])
     xero,_ = request('/api/journal/vendor-bills', dict(args, target='xero'))
-    row, = csv.DictReader(io.StringIO(xero.decode()))
+    assert xero.startswith(b'\xef\xbb\xbf')
+    row, = csv.DictReader(io.StringIO(xero.decode('utf-8-sig')))
     assert row['ContactName'] == scan['suggested_supplier'] and row['UnitAmount'] == '500.00' and row['TaxAmount'] == '35.00'
     odoo,_ = request('/api/journal/vendor-bills', dict(args, target='odoo'))
     row, = csv.DictReader(io.StringIO(odoo.decode()))

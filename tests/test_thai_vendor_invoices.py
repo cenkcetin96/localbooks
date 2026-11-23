@@ -66,7 +66,7 @@ class ThaiVendorInvoiceTests(unittest.TestCase):
         for format in ('odoo', 'xero'):
             with self.subTest(format=format):
                 csv_bytes = self.s.export_vendor_bills(dict(config, target=format))
-                rows = list(csv.DictReader(io.StringIO(csv_bytes.decode())))
+                rows = list(csv.DictReader(io.StringIO(csv_bytes.decode('utf-8-sig' if format == 'xero' else 'utf-8'))))
                 self.assertEqual(len(rows), 3)
                 for i, (row, (_, supplier, net, vat, gross)) in enumerate(zip(rows, SAMPLES), 1):
                     if format == 'odoo':
