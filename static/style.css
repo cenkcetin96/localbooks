@@ -300,3 +300,6 @@ dialog button[hidden]{display:none}
 }
 
 .saved-expense{background:#f0f0f0;box-shadow:inset 3px 0 #171717}
+
+.vendor-bill-option{border-top:1px solid #e5e5e5;margin-top:12px}
+.vendor-bill-details{border:0;margin:10px 0 0;padding:0}

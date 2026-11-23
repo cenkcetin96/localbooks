@@ -18,9 +18,9 @@ function options(items,current,label='name'){return items.map(i=>`<option value=
 function status(inv){return inv.status==='issued'?inv.payment_status:inv.status}
 function badge(inv){const s=status(inv);return `<span class="badge ${s}">${s==='unpaid'?'Outstanding':s[0].toUpperCase()+s.slice(1)}</span>`}
 function head(title,subtitle,actions=''){return `<header class="head"><div><h1>${title}</h1><p>${subtitle}</p></div><div class="actions">${actions}</div></header>`}
-function openDialog(html,onsubmit,{cancellable=false}={}){
+function openDialog(html,onsubmit,{cancellable=false,submitLabel='Save'}={}){
   const d=$('#dialog');
-  d.innerHTML=`<form>${html}<div class="actions"><button type="button" class="secondary" data-close>Cancel</button><button type="submit">Save</button></div></form>`;
+  d.innerHTML=`<form>${html}<div class="actions"><button type="button" class="secondary" data-close>Cancel</button><button type="submit">${esc(submitLabel)}</button></div></form>`;
   const form=d.querySelector('form'),close=form.querySelector('[data-close]');
   let busy=false;
   close.onclick=()=>{if(!busy||cancellable)d.close()};
@@ -52,9 +52,10 @@ function renderJournal(){
   const all=journalDisplayRows(state,source);
   const rows=all.filter(e=>(!overviewDrill||overviewDrill.page!==view||overviewDrill.ids.has(e.id))&&(journalCompany==='all'||String(e.company_id)===journalCompany)&&(journalYear==='all'||(e.date.startsWith(journalYear+'-')||e.linked_banks?.some(b=>b.date.startsWith(journalYear+'-'))))&&(expenses?(expensePaymentFilter==='all'||expensePaymentState(e)===expensePaymentFilter):(journalReviewFilter==='all'||journalReviewMatches(e,journalReviewFilter)))&&`${e.supplier||''} ${e.counterparty||''} ${e.description||''} ${e.document_number||''} ${e.reference||''} ${e.account||''}`.toLowerCase().includes(journalSearch.toLowerCase())).sort((a,b)=>b.date.localeCompare(a.date)||b.id-a.id);
   const years=[...new Set(all.flatMap(e=>[e.date.slice(0,4),...(e.linked_banks||[]).map(b=>b.date.slice(0,4))]))].sort().reverse();const size=50;if(highlightExpense){const index=rows.findIndex(e=>e.record_type==='document'&&e.id===highlightExpense);if(index>=0)journalPage=Math.floor(index/size)}journalPage=Math.max(0,Math.min(journalPage,Math.ceil(rows.length/size)-1));const start=journalPage*size,shown=rows.slice(start,start+size);
-  $('#main').innerHTML=head(expenses?'Expenses & payables':'Journal',expenses?'Supplier documents, payment status and linked bank payments.':'Bank movements and their linked expenses or invoice payments.',expenses?'<button id="journal-upload">＋ Upload document</button>':`<button id="bank-upload">${bankImportDraft?'Resume statement import':'Import bank statement'}</button>`)+overviewFilterBanner(view)+`${expenses?'<div class="callout">Save supplier invoices and receipts here. Link bank payments from Journal to keep documents and cash movements connected.</div>':'<div class="callout">Each row is a bank movement. Linked expenses are managed in <a href="#expenses">Expenses &amp; payables</a>.</div>'}<section class="card table-wrap"><div class="toolbar journal-filters"><label>Year<select id="journal-year-filter"><option value="all">All years</option>${years.map(y=>`<option ${y===journalYear?'selected':''}>${y}</option>`).join('')}</select></label>${expenses?`<label>Documents<select id="journal-source-filter"><option value="document">Active expenses</option><option value="duplicates" ${source==='duplicates'?'selected':''}>Duplicate documents</option></select></label><label>Payment status<select id="expense-payment-filter"><option value="all">All statuses</option>${[['unpaid','Unpaid'],['partial','Part paid'],['paid','Paid'],['unknown','Not specified']].map(([value,label])=>`<option value="${value}" ${expensePaymentFilter===value?'selected':''}>${label}</option>`).join('')}</select></label>`:`<label>Review<select id="journal-review-filter"><option value="all">All statuses</option><option value="needs_review" ${journalReviewFilter==='needs_review'?'selected':''}>Needs review</option><option value="reviewed" ${journalReviewFilter==='reviewed'?'selected':''}>Reviewed</option><option value="missing_docs" ${journalReviewFilter==='missing_docs'?'selected':''}>Missing documents</option></select></label>`}<input id="journal-search" aria-label="Search journal" placeholder="Search transactions…" value="${esc(journalSearch)}"></div>${shown.length?`<table id="journal-table"><thead><tr><th>Date</th><th>Counterparty / document</th><th>Company</th><th>Status</th><th class="right">Amount</th><th></th></tr></thead><tbody>${shown.map(e=>{const bank=e.record_type==='bank';return `<tr ${!bank&&e.id===highlightExpense?'class="saved-expense" aria-label="Saved expense"':''}><td>${esc(e.date)}</td><td class="journal-description"><b>${esc(bank?e.counterparty||e.description:e.supplier)}</b><span class="sub">${esc(bank?'KBank '+e.account+' · '+(e.reference||bankCategories[e.category]):e.document_number||e.document_type)}</span></td><td>${esc(state.companies.find(c=>c.id===e.company_id)?.name||'')}</td><td>${esc(bank?e.reviewed?'Reviewed':'Needs review':expenseStatus(e))}${bank?`<span class="sub">${e.linked_expense_id?`<a href="#expenses/${e.linked_expense_id}">Linked expense #${e.linked_expense_id} ↗</a>`:e.matched_record?'Matched to existing payment':e.cash_flow?'Included in cash flow':'Excluded from cash flow'}${!sharedBankDocuments(e).length?' · No supporting documents':''}</span>`:`<span class="sub">${e.duplicate_of?'Primary expense #'+e.duplicate_of:(e.linked_banks?.length||0)+' bank payment(s) · '+(e.documents?.length||1)+' document(s)'}</span>`}</td><td class="right">${bank?(e.direction==='in'?'+':'−'):''}${money(e.amount_minor,e.currency)}</td><td><div class="journal-actions">${bank?`<button class="secondary small" data-bank-view="${e.id}">View</button><button class="secondary small" data-bank-edit="${e.id}">Edit</button><button class="secondary small" data-bank-docs="${e.id}">Documents (${sharedBankDocuments(e).length})</button>`:`<button class="secondary small" data-journal-view="${e.id}">View</button>${e.duplicate_of?`<button class="secondary small" data-expense-restore="${e.id}">Restore as separate</button>`:`<button class="secondary small" data-journal-edit="${e.id}">Edit</button><button class="secondary small" data-expense-docs="${e.id}">Documents & payments</button>`}`}</div></td></tr>`}).join('')}</tbody></table>`:`<div class="empty"><h2>${all.length?'No matching records':expenses?'No expenses yet':'No bank transactions yet'}</h2><p>${expenses?'Upload a supplier invoice or receipt to start.':'Import a KBank statement to start.'}</p></div>`}<div class="bank-pagination journal-pagination"><button class="secondary small" id="journal-prev" ${journalPage===0?'disabled':''}>Previous</button><span>${rows.length?start+1:0}–${Math.min(start+size,rows.length)} of ${rows.length.toLocaleString()} records</span><button class="secondary small" id="journal-next" ${start+size>=rows.length?'disabled':''}>Next</button>${!expenses&&(state.bank_entries||[]).length?`<a class="button secondary small" href="/api/bank/export?company=${journalCompany==='all'?'':encodeURIComponent(journalCompany)}&year=${journalYear==='all'?'':encodeURIComponent(journalYear)}">Export bank records</a>`:''}</div></section>`;
+  $('#main').innerHTML=head(expenses?'Expenses & payables':'Journal',expenses?'Supplier documents, payment status and linked bank payments.':'Bank movements and their linked expenses or invoice payments.',expenses?'<button class="secondary" id="vendor-bill-export">Export vendor bills</button><button id="journal-upload">＋ Upload document</button>':`<button id="bank-upload">${bankImportDraft?'Resume statement import':'Import bank statement'}</button>`)+overviewFilterBanner(view)+`${expenses?'<div class="callout">Save supplier invoices and receipts here. Link bank payments from Journal to keep documents and cash movements connected.</div>':'<div class="callout">Each row is a bank movement. Linked expenses are managed in <a href="#expenses">Expenses &amp; payables</a>.</div>'}<section class="card table-wrap"><div class="toolbar journal-filters"><label>Year<select id="journal-year-filter"><option value="all">All years</option>${years.map(y=>`<option ${y===journalYear?'selected':''}>${y}</option>`).join('')}</select></label>${expenses?`<label>Documents<select id="journal-source-filter"><option value="document">Active expenses</option><option value="duplicates" ${source==='duplicates'?'selected':''}>Duplicate documents</option></select></label><label>Payment status<select id="expense-payment-filter"><option value="all">All statuses</option>${[['unpaid','Unpaid'],['partial','Part paid'],['paid','Paid'],['unknown','Not specified']].map(([value,label])=>`<option value="${value}" ${expensePaymentFilter===value?'selected':''}>${label}</option>`).join('')}</select></label>`:`<label>Review<select id="journal-review-filter"><option value="all">All statuses</option><option value="needs_review" ${journalReviewFilter==='needs_review'?'selected':''}>Needs review</option><option value="reviewed" ${journalReviewFilter==='reviewed'?'selected':''}>Reviewed</option><option value="missing_docs" ${journalReviewFilter==='missing_docs'?'selected':''}>Missing documents</option></select></label>`}<input id="journal-search" aria-label="Search journal" placeholder="Search transactions…" value="${esc(journalSearch)}"></div>${shown.length?`<table id="journal-table"><thead><tr><th>Date</th><th>Counterparty / document</th><th>Company</th><th>Status</th><th class="right">Amount</th><th></th></tr></thead><tbody>${shown.map(e=>{const bank=e.record_type==='bank';return `<tr ${!bank&&e.id===highlightExpense?'class="saved-expense" aria-label="Saved expense"':''}><td>${esc(e.date)}</td><td class="journal-description"><b>${esc(bank?e.counterparty||e.description:e.supplier)}</b><span class="sub">${esc(bank?'KBank '+e.account+' · '+(e.reference||bankCategories[e.category]):e.document_number||e.document_type)}</span></td><td>${esc(state.companies.find(c=>c.id===e.company_id)?.name||'')}</td><td>${esc(bank?e.reviewed?'Reviewed':'Needs review':expenseStatus(e))}${bank?`<span class="sub">${e.linked_expense_id?`<a href="#expenses/${e.linked_expense_id}">Linked expense #${e.linked_expense_id} ↗</a>`:e.matched_record?'Matched to existing payment':e.cash_flow?'Included in cash flow':'Excluded from cash flow'}${!sharedBankDocuments(e).length?' · No supporting documents':''}</span>`:`<span class="sub">${e.duplicate_of?'Primary expense #'+e.duplicate_of:(e.linked_banks?.length||0)+' bank payment(s) · '+(e.documents?.length||1)+' document(s)'}</span>`}</td><td class="right">${bank?(e.direction==='in'?'+':'−'):''}${money(e.amount_minor,e.currency)}</td><td><div class="journal-actions">${bank?`<button class="secondary small" data-bank-view="${e.id}">View</button><button class="secondary small" data-bank-edit="${e.id}">Edit</button><button class="secondary small" data-bank-docs="${e.id}">Documents (${sharedBankDocuments(e).length})</button>`:`<button class="secondary small" data-journal-view="${e.id}">View</button>${e.duplicate_of?`<button class="secondary small" data-expense-restore="${e.id}">Restore as separate</button>`:`<button class="secondary small" data-journal-edit="${e.id}">Edit</button><button class="secondary small" data-expense-docs="${e.id}">Documents & payments</button>`}`}</div></td></tr>`}).join('')}</tbody></table>`:`<div class="empty"><h2>${all.length?'No matching records':expenses?'No expenses yet':'No bank transactions yet'}</h2><p>${expenses?'Upload a supplier invoice or receipt to start.':'Import a KBank statement to start.'}</p></div>`}<div class="bank-pagination journal-pagination"><button class="secondary small" id="journal-prev" ${journalPage===0?'disabled':''}>Previous</button><span>${rows.length?start+1:0}–${Math.min(start+size,rows.length)} of ${rows.length.toLocaleString()} records</span><button class="secondary small" id="journal-next" ${start+size>=rows.length?'disabled':''}>Next</button>${!expenses&&(state.bank_entries||[]).length?`<a class="button secondary small" href="/api/bank/export?company=${journalCompany==='all'?'':encodeURIComponent(journalCompany)}&year=${journalYear==='all'?'':encodeURIComponent(journalYear)}">Export bank records</a>`:''}</div></section>`;
   if(highlightExpense){document.querySelector('.saved-expense')?.scrollIntoView({block:'nearest'});highlightExpense=null}
   bindOverviewFilterClear(renderJournal);if($('#journal-upload'))$('#journal-upload').onclick=journalUpload;if($('#bank-upload'))$('#bank-upload').onclick=bankUpload;
+  if (expenses) $('#vendor-bill-export').onclick = () => exportVendorBills(shown);
   const filters=[['#journal-year-filter',v=>journalYear=v],...(expenses?[['#journal-source-filter',v=>journalSource=v],['#expense-payment-filter',v=>expensePaymentFilter=v]]:[['#journal-review-filter',v=>journalReviewFilter=v]])];
   for(const [selector,set] of filters)$(selector).onchange=e=>{clearOverviewDrill();set(e.target.value);journalPage=0;renderJournal()};
   $('#journal-search').oninput=e=>{clearOverviewDrill();const pos=e.target.selectionStart;journalSearch=e.target.value;journalPage=0;renderJournal();$('#journal-search').focus();$('#journal-search').setSelectionRange(pos,pos)};
@@ -68,6 +69,71 @@ function renderJournal(){
   document.querySelectorAll('[data-bank-docs]').forEach(b=>b.onclick=()=>bankDocuments(Number(b.dataset.bankDocs)));
 }
 
+function exportVendorBills(rows) {
+  const company = activeCompanyRecord();
+  const bills = rows.filter(row => row.document_type === 'invoice' && !row.duplicate_of &&
+    row.payment_status === 'unpaid' && !row.bank_total_minor && row.document_number);
+  if (!bills.length) {
+    notify('This page has no unpaid supplier invoices with a document number and no linked bank payments.', true);
+    return;
+  }
+
+  const billOptions = bills.map(bill => `<div class="vendor-bill-option">
+    <label class="check"><input type="checkbox" name="bill" value="${bill.id}">
+      <span><b>${esc(bill.supplier)}</b> · ${esc(bill.document_number)} · ${esc(bill.date)} · ${esc(money(bill.amount_minor, bill.currency))}</span></label>
+    <fieldset class="vendor-bill-details" disabled hidden>
+      <legend class="muted">Confirm bill details</legend><div class="grid">
+      ${field('Supplier name in Odoo or Xero', 'supplier_' + bill.id, bill.supplier, 'text', true, 'maxlength="200"')}
+      ${field('Due date', 'due_' + bill.id, '', 'date', true, 'min="' + esc(bill.date) + '"')}
+      ${field('VAT on the bill (' + bill.currency + ')', 'vat_' + bill.id, '', 'text', true, 'inputmode="decimal" placeholder="Enter 0 for no VAT"')}</div>
+    </fieldset></div>`).join('');
+  openDialog(`<h2>Export vendor bills</h2><p>${esc(company.name)} · Select unpaid invoices from this page. Each invoice exports as one line. Group bills with the same account and tax treatment.</p>
+    <div class="grid"><label class="field">Format<select name="target"><option value="odoo">Odoo</option><option value="xero">Xero</option></select></label>
+    ${field('Expense account code', 'account', '', 'text', true, 'maxlength="80"')}
+    ${field('Purchase tax name in Odoo or Xero', 'tax', '', 'text', true, 'maxlength="200"')}</div>
+    <p class="hint" data-import-help></p>
+    ${billOptions}`, async formData => {
+    const target = formData.get('target');
+    const ids = new Set(formData.getAll('bill').map(Number));
+    if (!ids.size) throw new Error('Select at least one supplier invoice.');
+    const response = await fetch('/api/journal/vendor-bills', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        company_id: company.id, target, account: formData.get('account'), tax: formData.get('tax'),
+        bills: bills.filter(bill => ids.has(bill.id)).map(bill => ({
+          id: bill.id, gross_minor: bill.amount_minor, currency: bill.currency,
+          supplier: formData.get('supplier_' + bill.id), due_date: formData.get('due_' + bill.id),
+          vat: formData.get('vat_' + bill.id)
+        }))
+      })
+    });
+    if (!response.ok) throw new Error((await response.json()).error);
+    const url = URL.createObjectURL(await response.blob());
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `LocalBooks-${target}-vendor-bills.csv`;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }, {submitLabel: 'Download CSV'});
+
+  const form = $('#dialog form');
+  for (const checkbox of form.querySelectorAll('[name="bill"]')) {
+    const details = checkbox.closest('.vendor-bill-option').querySelector('fieldset');
+    checkbox.onchange = () => {
+      details.disabled = !checkbox.checked;
+      details.hidden = !checkbox.checked;
+    };
+  }
+  const updateHelp = () => {
+    form.querySelector('[data-import-help]').textContent = form.elements.target.value === 'odoo'
+      ? 'Use the exact vendor and tax names in Odoo and a tax configured for tax-exclusive prices. Test the import in Vendors → Bills and check totals before posting.'
+      : 'Use the exact contact and tax names in Xero. In Purchases → Bills, import the CSV with tax-exclusive prices and check the draft totals.';
+  };
+  form.elements.target.onchange = updateHelp;
+  updateHelp();
+}
 function journalView(id){const entry=state.journal.find(e=>e.id===id);if(entry)showDocumentPreview({...entry,url:'/journal-file/'+entry.id,title:'Uploaded document',detail:entry.supplier})}
 function showDocumentPreview({name,media_type,url,title='Document',detail='',page=1}){
   const d=$('#journal-preview'),src=url.startsWith('blob:')?url:url+'?preview=1';

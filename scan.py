@@ -141,17 +141,35 @@ def labelled_values(lines,pattern):
             yield line,lines[i+1][start:end].strip()
 
 
-def parse_date(value):
-    thai=bool(re.search(r'[ก-๙]',value))
+def parse_date(value, *, date_label=None):
+    buddhist = r'(?:พ\s*\.?\s*ศ\.?|\bB\.?\s*E\.?(?![a-z]))'
+    gregorian = r'(?:ค\s*\.?\s*ศ\.?|\b(?:A\.?\s*D|C\.?\s*E)\.?(?![a-z]))'
+    era = buddhist + '|' + gregorian
+    if date_label:
+        value = date_label + ' ' + value
+    explicit_buddhist = bool(re.search(buddhist, value, re.I))
+    explicit_gregorian = bool(re.search(gregorian, value, re.I))
+    thai = bool(re.search(r'[ก-๙]', value))
+    value = normalize_text(value)
+
     def make(year,month,day):
         year=int(year)
-        if year<100:year=(2500+year-543) if thai and year>=50 else 2000+year
-        if year>=2400:year-=543
+        if explicit_buddhist and explicit_gregorian:
+            return ''
+        if year<100:
+            if explicit_buddhist or (thai and year>=50 and not explicit_gregorian):
+                year += 2500
+            elif date_label is not None and year>=50 and not explicit_gregorian:
+                return ''
+            else:
+                year += 2000
+        if year>=2400 and not explicit_gregorian:
+            year-=543
         try:return dt.date(year,int(month),int(day)).isoformat()
         except ValueError:return ''
     iso=re.search(r'(?<!\d)(\d{4})[/-](\d{1,2})[/-](\d{1,2})(?!\d)',value)
     if iso:return make(*iso.groups())
-    numeric=re.search(r'(?<!\d)(\d{1,2})[/-](\d{1,2})[/-](\d{4}|\d{2})(?!\d)',value)
+    numeric=re.search(r'(?<!\d)(\d{1,2})[/-](\d{1,2})[/-](?:\s*(?:'+era+r')\s*)?(\d{4}|\d{2})(?!\d)',value,re.I)
     if numeric:
         day,month,year=numeric.groups();return make(year,month,day)
     months=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec']
@@ -213,9 +231,10 @@ def parse_document_text(extracted, *, companies=(), contacts=()):
     for line,value in labelled_values(lines,DATE):
         label=re.search(DATE,line,re.I)
         if re.search(r'(?:due|payment)\s*$',line[:label.start()],re.I) or re.match(r'\s*(?:paid|ครบกำหนด|ชำระ)',line[label.end():],re.I):continue
-        parsed=parse_date(value)
+        parsed=parse_date(value,date_label=label.group())
         if parsed:dates.append((3 if re.search(r'issue|invoice|document|วันที่ออก|วันที่เอกสาร',line,re.I) else 1,parsed))
-    payment_dates=[parse_date(value) for _,value in labelled_values(lines,r'date\s*paid|payment\s*date|paid\s*on|วันที่ชำระ')]
+    payment_label=r'date\s*paid|payment\s*date|paid\s*on|วันที่ชำระ'
+    payment_dates=[parse_date(value,date_label=re.search(payment_label,line,re.I).group()) for line,value in labelled_values(lines,payment_label)]
     payment_date=next((value for value in payment_dates if value),'')
     document_date=max(dates,key=lambda row:row[0])[1] if dates else payment_date if receipt else ''
     numbers=[]

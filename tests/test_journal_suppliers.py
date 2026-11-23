@@ -1,6 +1,8 @@
 """Supplier reuse and creation when reviewing expense documents."""
 import base64
 import concurrent.futures
+import csv
+import io
 from pathlib import Path
 import sys
 import tempfile
@@ -17,6 +19,57 @@ class JournalSupplierTests(unittest.TestCase):
     def payload(self,**extra):
         return {'company_id':self.company['id'],'supplier':'Acme Co., Ltd.','date':'2026-11-01','document_type':'invoice','payment_status':'unknown','currency':'THB','amount':'125.00','name':'supplier.pdf','content':base64.b64encode(b'%PDF-1.4 test expense').decode(),**extra}
     def unique(self,n,**extra):return self.payload(content=base64.b64encode(b'%PDF-1.4 expense '+str(n).encode()).decode(),duplicate_confirmed=True,**extra)
+    def vendor_export(self):
+        result = self.s.save_journal(self.unique(1, supplier='บริษัท ผู้ขาย จำกัด', document_number='TH-069',
+                                                   amount='107.00', payment_status='unpaid'))
+        return dict(target='odoo', company_id=self.company['id'], account='5201000', tax='VAT 7%',
+                    bills=[dict(id=result['id'], supplier='บริษัท ผู้ขาย จำกัด', gross_minor=10700, currency='THB',
+                                due_date='2026-12-01', vat='7.00')])
+
+    def test_vendor_exports_match_platform_headers_dates_and_amounts(self):
+        payload = self.vendor_export()
+        odoo = self.s.export_vendor_bills(payload)
+        row, = csv.DictReader(io.StringIO(odoo.decode()))
+        self.assertTrue(row['External ID'].startswith('localbooks.bill_'))
+        self.assertEqual(row['Partner'], 'บริษัท ผู้ขาย จำกัด')
+        self.assertEqual(row['Reference'], 'TH-069')
+        self.assertEqual(row['Invoice Bill Date'], '2026-11-01')
+        self.assertEqual(row['Invoice Lines/Account'], '5201000')
+        self.assertEqual(row['Invoice Lines/Unit Price'], '100.00')
+        self.assertEqual(row['Invoice Lines/Taxes'], 'VAT 7%')
+        self.assertEqual(self.s.export_vendor_bills(payload), odoo)
+        xero = self.s.export_vendor_bills(dict(payload, target='xero'))
+        row, = csv.DictReader(io.StringIO(xero.decode()))
+        self.assertEqual(row['InvoiceNumber'], 'TH-069')
+        self.assertEqual(row['InvoiceDate'], '01/11/2026')
+        self.assertEqual(row['DueDate'], '01/12/2026')
+        self.assertEqual(row['UnitAmount'], '100.00')
+        self.assertEqual(row['TaxAmount'], '7.00')
+        self.assertEqual(row['TaxType'], 'VAT 7%')
+
+    def test_vendor_exports_require_current_unpaid_company_records_and_confirmed_fields(self):
+        payload = self.vendor_export()
+        for field, value in [('gross_minor', 100), ('vat', ''), ('vat', '107'), ('due_date', '2026-10-31'),
+                             ('supplier', '=FORMULA()')]:
+            with self.subTest(field=field), self.assertRaises(ValidationError):
+                self.s.export_vendor_bills(dict(payload, bills=[dict(payload['bills'][0], **{field: value})]))
+        other = self.s.save_party('companies', {'name': 'Other', 'code': 'OTHER'})
+        with self.assertRaises(ValidationError):
+            self.s.export_vendor_bills(dict(payload, company_id=other['id']))
+        self.s.save_journal(self.payload(id=payload['bills'][0]['id'], payment_status='paid'))
+        with self.assertRaisesRegex(ValidationError, 'unpaid'):
+            self.s.export_vendor_bills(payload)
+
+    def test_xero_cannot_merge_bills_sharing_a_supplier_reference(self):
+        payload = self.vendor_export()
+        second = self.s.save_journal(self.unique(2, supplier='Different supplier', document_number='TH-069',
+                                                 amount='107.00', payment_status='unpaid'))
+        payload['bills'].append(dict(payload['bills'][0], id=second['id'], supplier='Different supplier'))
+        with self.assertRaisesRegex(ValidationError, 'groups matching invoice numbers'):
+            self.s.export_vendor_bills(dict(payload, target='xero'))
+        rows = list(csv.DictReader(io.StringIO(self.s.export_vendor_bills(payload).decode())))
+        self.assertNotEqual(rows[0]['External ID'], rows[1]['External ID'])
+
     def test_new_supplier_reused_by_normalized_name_and_tax(self):
         first=self.s.save_journal(self.payload(supplier_tax_id='3333333333333',supplier_address='Saved address'))
         self.assertTrue(first['supplier_created'])

@@ -637,6 +637,75 @@ class Store:
             self.event('review_attachment',separate_id if separate else bank['id'] if bank else expense['id'],name+'; '+('separate expense; source record unchanged' if separate else match or 'bank evidence'))
             return result
 
+    def export_vendor_bills(self, data):
+        target = data.get('target')
+        if target not in ('odoo', 'xero'):
+            raise ValidationError('Choose Odoo or Xero.')
+        company_id = data.get('company_id')
+        selected = data.get('bills')
+        if type(company_id) is not int or not isinstance(selected, list) or not 1 <= len(selected) <= 100:
+            raise ValidationError('Choose a company and 1–100 supplier bills.')
+
+        def import_text(value, label, limit):
+            value = text(value, label, limit, True)
+            if value.startswith(('=', '+', '-', '@')) or any(c in value for c in '\r\n\t'):
+                raise ValidationError(f'{label}: use a single line that does not start with =, +, - or @.')
+            return value
+
+        account = import_text(data.get('account'), 'Account code', 80)
+        tax = import_text(data.get('tax'), 'Purchase tax name', 200)
+        with self.lock:
+            entries = {e['id']: e for e in self.journal() if e['company_id'] == company_id}
+        output = io.StringIO()
+        writer = csv.writer(output)
+        if target == 'odoo':
+            writer.writerow(['External ID', 'Partner', 'Reference', 'Invoice Bill Date', 'Due Date', 'Currency',
+                             'Invoice Lines/Label', 'Invoice Lines/Account', 'Invoice Lines/Quantity',
+                             'Invoice Lines/Unit Price', 'Invoice Lines/Taxes'])
+        else:
+            writer.writerow(['ContactName', 'InvoiceNumber', 'InvoiceDate', 'DueDate', 'Description',
+                             'Quantity', 'UnitAmount', 'AccountCode', 'TaxType', 'TaxAmount', 'Currency'])
+
+        ids, references = set(), set()
+        for bill in selected:
+            if not isinstance(bill, dict) or type(bill.get('id')) is not int or bill['id'] in ids:
+                raise ValidationError('Select each bill only once.')
+            entry = entries.get(bill['id'])
+            if not entry or entry['document_type'] != 'invoice' or entry.get('duplicate_of'):
+                raise ValidationError('Choose active supplier invoices from this company.')
+            if entry['payment_status'] != 'unpaid' or entry['bank_total_minor']:
+                raise ValidationError('Choose unpaid invoices with no linked bank payments.')
+            if bill.get('gross_minor') != entry['amount_minor'] or bill.get('currency') != entry['currency']:
+                raise ValidationError('A bill amount or currency changed. Reopen the export and review it again.')
+            ids.add(entry['id'])
+            supplier = import_text(bill.get('supplier'), 'Supplier name in ' + target.title(), 200)
+            ref = import_text(entry.get('document_number'), 'Supplier invoice number', 80)
+            key = unicodedata.normalize('NFKC', ref).casefold()
+            if target == 'xero' and key in references:
+                raise ValidationError('Xero groups matching invoice numbers together. Export bills with the same number in separate files.')
+            references.add(key)
+            issue = dt.date.fromisoformat(date(entry['date'], 'Bill date'))
+            due = dt.date.fromisoformat(date(bill.get('due_date'), 'Due date'))
+            if due < issue:
+                raise ValidationError(f'{ref}: the due date must be on or after the bill date.')
+            currency = entry['currency']
+            places = CURRENCIES[currency]
+            vat_minor = int(decimal(bill.get('vat'), 'Bill VAT', places) * 10 ** places)
+            if vat_minor >= entry['amount_minor']:
+                raise ValidationError(f'{ref}: VAT must be less than the bill total.')
+            unit = f"{Decimal(entry['amount_minor'] - vat_minor).scaleb(-places):.{places}f}"
+            vat = f"{Decimal(vat_minor).scaleb(-places):.{places}f}"
+            description = ' '.join((entry.get('description') or 'Supplier bill ' + ref).split())
+            description = import_text(description, 'Bill description', 1000)
+            if target == 'odoo':
+                external_id = f"localbooks.bill_{company_id}_{entry['sha256']}"
+                writer.writerow([external_id, supplier, ref, issue.isoformat(), due.isoformat(), currency,
+                                 description, account, 1, unit, tax])
+            else:
+                writer.writerow([supplier, ref, issue.strftime('%d/%m/%Y'), due.strftime('%d/%m/%Y'),
+                                 description, 1, unit, account, tax, vat, currency])
+        return output.getvalue().encode('utf-8')
+
     def export_bank(self,company='',year=''):
         output=io.StringIO();writer=csv.writer(output);writer.writerow(['Company','Account','Date','Direction','Currency','Amount','Counterparty','Description','Reference','Classification','Review status','Included in cash flow','Matched record','Supporting documents','Statement','Source page','Notes'])
         def cell(value):
@@ -1323,6 +1392,9 @@ class Handler(BaseHTTPRequestHandler):
             elif p=='/api/bank/attach':result=s.attach_bank_document(data)
             elif p=='/api/document/review':result=s.review_attachment(data)
             elif p=='/api/journal':result=s.save_journal(data)
+            elif p=='/api/journal/vendor-bills':
+                csv_data=s.export_vendor_bills(data)
+                return self.send(200,csv_data,'text/csv; charset=utf-8',f"LocalBooks-{data['target']}-vendor-bills.csv")
             elif p=='/api/journal/attach':result=s.attach_journal_document(data)
             elif p=='/api/journal/duplicate':result=s.mark_expense_duplicate(data)
             elif p=='/api/catalog':result=s.save_catalog_item(data)

@@ -206,6 +206,11 @@ final class LocalBooksApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WK
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
         guard let url = navigationAction.request.url else { decisionHandler(.cancel); return }
         if url.scheme == "about" { decisionHandler(.allow); return }
+        if #available(macOS 11.3, *), navigationAction.shouldPerformDownload, let localPort,
+           url.absoluteString.hasPrefix("blob:http://127.0.0.1:\(localPort)/") {
+            decisionHandler(.download)
+            return
+        }
         guard url.scheme == "http", url.host == "127.0.0.1", url.port == localPort else { decisionHandler(.cancel); return }
         if #available(macOS 11.3, *), navigationAction.shouldPerformDownload { decisionHandler(.download) }
         else { decisionHandler(.allow) }

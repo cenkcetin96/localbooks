@@ -124,6 +124,22 @@ class ScanFieldsTests(unittest.TestCase):
         self.assertEqual(parse_document_text('Invoice\nIssue date: 31/02/2026')['suggested_date'],'')
         self.assertEqual(parse_date('not a date'),'')
 
+    def test_short_buddhist_year_requires_usable_era_context(self):
+        examples = {
+            'วันที่ 23/11/69': '2026-11-23',
+            'วันที่ 23/11/พ.ศ. 69': '2026-11-23',
+            'Issue date: 23/11/69 B.E.': '2026-11-23',
+            'Issue date: 23 พ.ย. 69': '2026-11-23',
+            'วันที่ ๒๓/๑๑/๒๕๖๙': '2026-11-23',
+            'Issue date: 23/11/69': '',
+            'วันที่ 23/11/69 ค.ศ.': '2069-11-23',
+            'วันที่ 31/11/69': '',
+            'Issue date: 23/11/26': '2026-11-23',
+        }
+        for printed, expected in examples.items():
+            with self.subTest(printed=printed):
+                self.assertEqual(parse_document_text('Invoice\n' + printed)['suggested_date'], expected)
+
     def test_number_on_next_line_and_no_account_or_license_number(self):
         r=parse_document_text('Receipt\nReceipt number\nDEMO-REC-2026-0001\nAccount number 1234567890\nใบอนุญาตเลขที่ 1234/2569')
         self.assertEqual(r['suggested_number'],'DEMO-REC-2026-0001')
