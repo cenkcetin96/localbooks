@@ -1,11 +1,12 @@
-# LocalBooks 1.3.0
+# LocalBooks 1.4.0
 
-[**Download LocalBooks for Mac**](https://github.com/cenkcetin96/localbooks/releases/download/v1.3.0/LocalBooks-1.3.0-macOS-AppleSilicon.dmg)
+[**Download LocalBooks for Mac**](https://github.com/cenkcetin96/localbooks/releases/download/v1.4.0/LocalBooks-1.4.0-macOS-AppleSilicon.dmg)
 
-- Export saved unpaid supplier invoices as Odoo or Xero bill-import CSVs. Confirm the destination account and tax name, due date and printed VAT before downloading.
-- Read short Buddhist Era dates such as `วันที่ 23/11/69` as `2026-11-23`. Ambiguous short years in English date fields stay blank for review.
+- Review printed VAT beside the gross total on supplier invoices. A scan suggests VAT when the printed subtotal, VAT and total reconcile. The confirmed amount carries through to Odoo and Xero bill exports.
+- Read supplier tax IDs that wrap onto the next line in side-by-side Thai invoice layouts.
+- Test the workflow with four synthetic Thai invoice PDFs, including an image-only scan and a bill whose date and VAT need review.
 
-1. Download **LocalBooks-1.3.0-macOS-AppleSilicon.dmg** below. Requires an Apple Silicon Mac (M1 or newer) running **macOS 15 Sequoia or later**. Check **Apple menu → About This Mac**.
+1. Download **LocalBooks-1.4.0-macOS-AppleSilicon.dmg** below. Requires an Apple Silicon Mac (M1 or newer) running **macOS 15 Sequoia or later**. Check **Apple menu → About This Mac**.
 2. Open the downloaded file and drag **LocalBooks** onto **Applications**.
 3. Open **Applications → LocalBooks**. If macOS blocks it, choose **Done**, then **System Settings → Privacy & Security → Open Anyway**, and confirm **Open**. This community build is not Apple notarized. See [Apple’s instructions](https://support.apple.com/en-us/102445).
 4. Add your company and customer, then create your first invoice. The [short onboarding tour](https://github.com/cenkcetin96/localbooks#five-minute-onboarding-tour) walks you through the rest.

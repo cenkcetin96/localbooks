@@ -6,11 +6,15 @@ on:
         description: Verify the published disk image instead of building a new release
         type: boolean
         default: false
+      verify_odoo:
+        description: Test the fixture CSV in a disposable Odoo 19 database
+        type: boolean
+        default: false
 permissions:
   contents: write
 jobs:
   mac-app:
-    if: ${{ !inputs.verify_existing }}
+    if: ${{ !inputs.verify_existing && !inputs.verify_odoo }}
     runs-on: macos-15
     timeout-minutes: 45
     env:
@@ -47,9 +51,9 @@ jobs:
           mv release/LocalBooks.app build/dmg/
           ln -s /Applications build/dmg/Applications
           cp packaging/INSTALL.html 'build/dmg/Start here.html'
-          hdiutil create -volname LocalBooks -srcfolder build/dmg -ov -format UDZO release/LocalBooks-1.3.0-macOS-AppleSilicon.dmg
+          hdiutil create -volname LocalBooks -srcfolder build/dmg -ov -format UDZO release/LocalBooks-1.4.0-macOS-AppleSilicon.dmg
           cd release
-          shasum -a 256 LocalBooks-1.3.0-macOS-AppleSilicon.dmg LocalBooks-1.3.0-third-party-sources.zip > SHA256SUMS.txt
+          shasum -a 256 LocalBooks-1.4.0-macOS-AppleSilicon.dmg LocalBooks-1.4.0-third-party-sources.zip > SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:
           name: LocalBooks-Mac-release
@@ -59,10 +63,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create v1.3.0 release/* --target "$GITHUB_SHA" --title 'LocalBooks 1.3.0 — Odoo and Xero bill exports' --notes-file packaging/RELEASE_NOTES.md --latest
+          gh release create v1.4.0 release/* --target "$GITHUB_SHA" --title 'LocalBooks 1.4.0 — Thai invoice VAT review' --notes-file packaging/RELEASE_NOTES.md --latest
 
   verify-download:
-    if: ${{ inputs.verify_existing }}
+    if: ${{ inputs.verify_existing && !inputs.verify_odoo }}
     runs-on: macos-15
     timeout-minutes: 15
     permissions:
@@ -74,19 +78,44 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p release
-          gh release download v1.3.0 --pattern LocalBooks-1.3.0-macOS-AppleSilicon.dmg --pattern SHA256SUMS.txt --dir release
+          gh release download v1.4.0 --pattern LocalBooks-1.4.0-macOS-AppleSilicon.dmg --pattern SHA256SUMS.txt --dir release
           python3 - <<'PYTHON'
           from pathlib import Path
           import hashlib
-          image = Path('release/LocalBooks-1.3.0-macOS-AppleSilicon.dmg')
+          image = Path('release/LocalBooks-1.4.0-macOS-AppleSilicon.dmg')
           checksums = {name: digest for digest, name in map(str.split, (image.parent / 'SHA256SUMS.txt').read_text().splitlines())}
           assert hashlib.sha256(image.read_bytes()).hexdigest() == checksums[image.name]
           PYTHON
       - name: Verify the actual download with empty temporary records
         run: |
           mkdir -p "$RUNNER_TEMP/localbooks-image"
-          hdiutil attach -readonly -nobrowse -mountpoint "$RUNNER_TEMP/localbooks-image" release/LocalBooks-1.3.0-macOS-AppleSilicon.dmg
+          hdiutil attach -readonly -nobrowse -mountpoint "$RUNNER_TEMP/localbooks-image" release/LocalBooks-1.4.0-macOS-AppleSilicon.dmg
           codesign --verify --deep --strict "$RUNNER_TEMP/localbooks-image/LocalBooks.app"
-          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$RUNNER_TEMP/localbooks-image/LocalBooks.app/Contents/Info.plist")" = 1.3.0
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$RUNNER_TEMP/localbooks-image/LocalBooks.app/Contents/Info.plist")" = 1.4.0
           python3 tests/smoke_release.py "$RUNNER_TEMP/localbooks-image/LocalBooks.app"
           hdiutil detach "$RUNNER_TEMP/localbooks-image"
+
+  verify-odoo:
+    if: ${{ inputs.verify_odoo }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate bill CSVs from synthetic Thai invoices
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq poppler-utils tesseract-ocr
+          python3 tests/test_thai_vendor_invoices.py "$RUNNER_TEMP/vendor-bills"
+      - name: Import and compare draft bills in Odoo 19
+        run: |
+          docker network create localbooks-fixtures
+          docker run -d --name fixture-db --network localbooks-fixtures \
+            -e POSTGRES_DB=postgres -e POSTGRES_USER=odoo -e POSTGRES_PASSWORD=fixture-test postgres:16
+          docker run --rm --network localbooks-fixtures odoo:19.0 \
+            odoo --db_host=fixture-db --db_user=odoo --db_password=fixture-test \
+            -d localbooks_fixtures -i account,l10n_th,base_import --without-demo=all --stop-after-init
+          docker run --rm -i --network localbooks-fixtures -v "$RUNNER_TEMP/vendor-bills:/fixtures:ro" odoo:19.0 \
+            odoo shell --db_host=fixture-db --db_user=odoo --db_password=fixture-test \
+            -d localbooks_fixtures --no-http < tests/smoke_odoo_import.py

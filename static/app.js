@@ -78,15 +78,18 @@ function exportVendorBills(rows) {
     return;
   }
 
-  const billOptions = bills.map(bill => `<div class="vendor-bill-option">
+  const billOptions = bills.map(bill => {
+    const vat = bill.vat_minor == null ? '' : (bill.vat_minor / 10**state.currencies[bill.currency]).toFixed(state.currencies[bill.currency]);
+    return `<div class="vendor-bill-option">
     <label class="check"><input type="checkbox" name="bill" value="${bill.id}">
       <span><b>${esc(bill.supplier)}</b> · ${esc(bill.document_number)} · ${esc(bill.date)} · ${esc(money(bill.amount_minor, bill.currency))}</span></label>
     <fieldset class="vendor-bill-details" disabled hidden>
       <legend class="muted">Confirm bill details</legend><div class="grid">
       ${field('Supplier name in Odoo or Xero', 'supplier_' + bill.id, bill.supplier, 'text', true, 'maxlength="200"')}
       ${field('Due date', 'due_' + bill.id, '', 'date', true, 'min="' + esc(bill.date) + '"')}
-      ${field('VAT on the bill (' + bill.currency + ')', 'vat_' + bill.id, '', 'text', true, 'inputmode="decimal" placeholder="Enter 0 for no VAT"')}</div>
-    </fieldset></div>`).join('');
+      ${field('VAT on the bill (' + bill.currency + ')', 'vat_' + bill.id, vat, 'text', vat === '', vat === '' ? 'inputmode="decimal" placeholder="Enter 0 for no VAT"' : 'readonly')}</div>
+    </fieldset></div>`;
+  }).join('');
   openDialog(`<h2>Export vendor bills</h2><p>${esc(company.name)} · Select unpaid invoices from this page. Each invoice exports as one line. Group bills with the same account and tax treatment.</p>
     <div class="grid"><label class="field">Format<select name="target"><option value="odoo">Odoo</option><option value="xero">Xero</option></select></label>
     ${field('Expense account code', 'account', '', 'text', true, 'maxlength="80"')}
@@ -103,7 +106,7 @@ function exportVendorBills(rows) {
         bills: bills.filter(bill => ids.has(bill.id)).map(bill => ({
           id: bill.id, gross_minor: bill.amount_minor, currency: bill.currency,
           supplier: formData.get('supplier_' + bill.id), due_date: formData.get('due_' + bill.id),
-          vat: formData.get('vat_' + bill.id)
+          vat: formData.get('vat_' + bill.id), saved_vat_minor: bill.vat_minor ?? null
         }))
       })
     });
@@ -158,6 +161,7 @@ function journalReview(file,scan={},entry=null){
   const companyId=entry?.company_id||Number(activeCompany);
   const currency=entry?.currency||scan.suggested_currency||'';
   const amount=entry?(entry.amount_minor/10**state.currencies[entry.currency]).toFixed(state.currencies[entry.currency]):(scan.suggested_amount||'');
+  const vat = entry ? (entry.vat_minor == null ? '' : (entry.vat_minor / 10**state.currencies[currency]).toFixed(state.currencies[currency])) : (scan.suggested_vat_amount || '');
   $('#main').innerHTML=head(entry?'Edit expense':'Review scanned document',entry?'Update the record; the original file stays attached.':'Check the suggested details against the original before saving.',`<button type="button" class="secondary" id="journal-original">View original</button><button type="button" class="secondary" id="journal-cancel">Cancel</button>`)+`<form id="journal-form" class="card editor"><div class="grid"><label class="field">My company<select name="company_id" required><option value="">Select company</option>${options(activeCompanies(),companyId)}</select></label><label class="field">Document type<select name="document_type"><option value="other" ${(entry?.document_type||scan.suggested_document_type)==='other'?'selected':''}>Other / not specified</option><option value="invoice" ${(entry?.document_type||scan.suggested_document_type)==='invoice'?'selected':''}>Supplier invoice</option><option value="receipt" ${(entry?.document_type||scan.suggested_document_type)==='receipt'?'selected':''}>Supplier receipt</option></select></label><div class="span2"><label class="field">Saved supplier<select name="supplier_id"><option value="">Match automatically / create if new</option>${partyRecords('suppliers').map(p=>`<option value="${p.id}" ${(entry?.supplier_id||scan.suggested_supplier_id)===p.id?'selected':''}>${esc(p.name)}${p.tax_id?' · '+esc(p.tax_id):''}</option>`).join('')}</select></label><p class="hint">Matches saved suppliers by tax ID, then by name. A new supplier is added to Suppliers when you save.</p></div>${field('Supplier','supplier',entry?.supplier||scan.suggested_supplier||'','text',true,'maxlength="200"')}${field('Supplier tax ID · optional','supplier_tax_id',entry?.supplier_tax_id||scan.suggested_supplier_tax_id||'','text',false,'maxlength="80"')}<details class="span2"><summary>Supplier contact details · optional</summary><div class="grid"><div class="span2">${area('Supplier address','supplier_address',entry?.supplier_address||scan.suggested_supplier_address||'','maxlength="1200"')}</div>${field('Supplier email','supplier_email',entry?.supplier_email||scan.suggested_supplier_email||'','email',false,'maxlength="200"')}${field('Supplier phone','supplier_phone',entry?.supplier_phone||scan.suggested_supplier_phone||'','text',false,'maxlength="80"')}${field('Supplier head office or branch','supplier_branch',entry?.supplier_branch||scan.suggested_supplier_branch||'','text',false,'maxlength="100"')}</div></details>${field('Document date','date',entry?.date||scan.suggested_date||'','date',true)}${field('Document number · optional','document_number',entry?.document_number||scan.suggested_number||'','text',false,'maxlength="80"')}<label class="field">Payment status<select name="payment_status"><option value="unknown" ${entry?.payment_status==='unknown'?'selected':''}>Not specified</option><option value="unpaid" ${entry?.payment_status==='unpaid'?'selected':''}>Unpaid</option><option value="paid" ${entry?.payment_status==='paid'?'selected':''}>Paid</option></select></label><label class="field">Currency<select name="currency" required><option value="">Select currency</option>${Object.keys(state.currencies).map(c=>`<option ${c===currency?'selected':''}>${c}</option>`).join('')}</select></label>${field('Total amount','amount',amount,'number',true,'min="0.001" step="any"')}<div class="span2" id="expense-payment-details" hidden><div class="grid">${field('Date paid','payment_date',entry?.payment_date||scan.suggested_payment_date||'','date',false,`max="${today()}"`)}${field('Cash paid · after any withholding','paid_amount',entry?.paid_amount_minor!==undefined?(entry.paid_amount_minor/10**state.currencies[entry.currency]).toFixed(state.currencies[entry.currency]):scan.suggested_paid_amount||'','number',false,'min="0" step="any"')}</div><p class="hint">Enter the actual amount paid to the supplier, excluding tax you withheld. Included in Money out on this date.</p></div><div class="span2">${area('Description or notes · optional','description',entry?.description||scan.suggested_description||'','maxlength="1000"')}</div></div><p class="hint">Original file: ${esc(entry?.name||file.name)}. Payment status is only what you choose here.</p>${scan?.error?`<div class="callout warning">Scan could not read this document: ${esc(scan.error)}. You can enter the details manually.</div>`:''}${scan?.text?`<details class="scan-text"><summary>Show extracted text</summary><pre>${esc(scan.text)}</pre></details>`:''}<div class="actions"><button type="submit">Save expense</button></div></form>`;
   editorDirty=!entry;
   $('#journal-original').onclick=()=>{
@@ -169,6 +173,7 @@ function journalReview(file,scan={},entry=null){
   };
   $('#journal-cancel').onclick=()=>{if(!discardEditorChanges())return;if(location.hash!=='#expenses')location.hash='expenses';else renderJournal()};
   const supplierForm=$('#journal-form');
+  supplierForm.elements.amount.closest('label').insertAdjacentHTML('afterend', field('VAT amount · optional', 'vat_amount', vat, 'number', false, 'min="0" step="any"'));
   const paymentFields=$('#expense-payment-details'),paidDate=supplierForm.elements.payment_date,paidAmount=supplierForm.elements.paid_amount;
   function updateExpensePayment(){const paid=supplierForm.elements.payment_status.value==='paid';paymentFields.hidden=!paid;paidDate.required=paid;paidAmount.required=paid;if(paid){if(!paidDate.value)paidDate.value=supplierForm.elements.date.value;if(!paidAmount.value&&!scan.payment_amount_uncertain)paidAmount.value=supplierForm.elements.amount.value}}
   supplierForm.elements.payment_status.onchange=updateExpensePayment;updateExpensePayment();

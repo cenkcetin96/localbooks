@@ -118,7 +118,7 @@ def tax_id(block):
     for i,line in enumerate(block):
         label=re.search(TAX,line,re.I)
         if not label:continue
-        candidates=[line[label.end():]]
+        candidates=[line[label.end():].strip(' :：\t')]
         if not candidates[0].strip() and i+1<len(block):candidates.append(block[i+1])
         for candidate in candidates:
             found=re.search(r'(?<!\d)(\d(?:[ -]*\d){12})(?!\d)',candidate)
@@ -196,6 +196,31 @@ def money_value(value,currency):
     return ''
 
 
+def reconciled_vat(lines, currency, gross_amounts):
+    """Suggest the printed VAT only when the three invoice totals agree."""
+    subtotal = (r'^\s*(?:subtotal|sub[ -]total|(?:total|amount)\s+before\s+(?:VAT|tax)|'
+                r'(?:มูลค่า|จำนวนเงิน|ยอดรวม|รวม(?:เป็น)?เงิน)\s*ก่อน\s*(?:ภาษี(?:มูลค่าเพิ่ม)?|VAT))(?=\s|[:：]|$)')
+    vat = (r'^\s*(?:VAT\b|value[ -]added\s+tax\b|ภาษี\s*มูลค่า\s*เพิ่ม)'
+           r'(?!\s*(?:ID|no\.?|number|registration|rate|inclusive|exclusive|code)\b)(?:\s+amount\b)?'
+           r'(?:\s*\(?\s*\d+(?:\.\d+)?\s*%\s*\)?)?(?=\s|[:：]|$)')
+
+    def amounts(pattern):
+        return {Decimal(amount) for _, value in labelled_values(lines, pattern)
+                if (amount := money_value(value, currency))}
+
+    subtotals = amounts(subtotal)
+    taxes = amounts(vat)
+    totals = {Decimal(amount) for _, amount in gross_amounts}
+    if len(subtotals) == len(taxes) == len(totals) == 1:
+        net, = subtotals
+        tax, = taxes
+        gross, = totals
+        if net > 0 and gross == net + tax:
+            places = {'JPY': 0, 'KWD': 3}.get(currency, 2)
+            return f'{tax:.{places}f}'
+    return ''
+
+
 def parse_document_text(extracted, *, companies=(), contacts=()):
     clean=normalize_text(extracted);lines=[line.rstrip() for line in clean.splitlines() if line.strip()]
     seller,buyer=party_blocks(lines)
@@ -257,6 +282,7 @@ def parse_document_text(extracted, *, companies=(), contacts=()):
         paid_amount=money_value(value,currency)
         if paid_amount:break
     amount=max(amounts,key=lambda row:row[0])[1] if amounts else paid_amount
+    vat_amount=reconciled_vat(lines,currency,amounts) if doc_type=='invoice' and currency else ''
     withheld=[money_value(value,currency) for _,value in labelled_values(lines,r'withholding(?:\s*tax)?|WHT\b|หัก\s*ณ\s*ที[่]?จ[่]?าย')]
     positive_withheld=[Decimal(value) for value in withheld if value and Decimal(value)>0]
     payment_uncertain=bool(positive_withheld and (not amount or not paid_amount or Decimal(amount)-Decimal(paid_amount) not in positive_withheld))
@@ -285,7 +311,7 @@ def parse_document_text(extracted, *, companies=(), contacts=()):
     if not supplier_branch:
         branch=re.search(r'สำนักงานใหญ่|head\s*office',seller_text,re.I)
         if branch:supplier_branch=branch.group(0)
-    result=dict(text=extracted,suggested_date=document_date,suggested_amount=amount,suggested_number=number,suggested_supplier=supplier,suggested_supplier_tax_id=supplier_tax,suggested_supplier_address='\n'.join(address)[:1200],suggested_supplier_email=email.group(0) if email else '',suggested_supplier_phone=phone[1].strip() if phone else '',suggested_supplier_branch=supplier_branch,suggested_currency=currency,suggested_document_type=doc_type,suggested_description='; '.join(description)[:1000],suggested_payment_date=payment_date,suggested_paid_amount=paid_amount,payment_amount_uncertain=payment_uncertain)
+    result=dict(text=extracted,suggested_date=document_date,suggested_amount=amount,suggested_vat_amount=vat_amount,suggested_number=number,suggested_supplier=supplier,suggested_supplier_tax_id=supplier_tax,suggested_supplier_address='\n'.join(address)[:1200],suggested_supplier_email=email.group(0) if email else '',suggested_supplier_phone=phone[1].strip() if phone else '',suggested_supplier_branch=supplier_branch,suggested_currency=currency,suggested_document_type=doc_type,suggested_description='; '.join(description)[:1000],suggested_payment_date=payment_date,suggested_paid_amount=paid_amount,payment_amount_uncertain=payment_uncertain)
     matches=[p for p in contacts if supplier_tax and record_key(p.get('tax_id',''))==record_key(supplier_tax)]
     if not matches and supplier:
         matches=[p for p in contacts if record_key(supplier) in {record_key(p.get('name','')),record_key(p.get('legal_name',''))} and (not supplier_tax or not p.get('tax_id') or record_key(p['tax_id'])==record_key(supplier_tax))]

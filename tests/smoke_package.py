@@ -1,5 +1,6 @@
 """Exercise an already-launched isolated native package; never uses real data."""
 import base64
+import csv
 import datetime as dt
 import io
 import json
@@ -29,6 +30,26 @@ def main():
     request('/api/company',{'name':'No','code':'NO'},origin='https://untrusted.example',expected=403);checks.append('Foreign Origin rejected')
     request('/static/../app.py',expected=404);checks.append('Static path traversal rejected')
     c,_=request('/api/company',{'name':'Package QA company','code':'QA'})
+    sample = Path(__file__).parent / 'fixtures/thai-invoices/03-image-only.pdf'
+    encoded = base64.b64encode(sample.read_bytes()).decode()
+    scan,_ = request('/api/scan', dict(content=encoded))
+    assert scan['suggested_supplier'] == 'บริษัท ตัวอย่างสยาม จำกัด'
+    assert scan['suggested_date'] == '2026-11-23' and scan['suggested_vat_amount'] == '35.00'
+    expense,_ = request('/api/journal', dict(
+        company_id=c['id'], supplier=scan['suggested_supplier'], supplier_tax_id=scan['suggested_supplier_tax_id'],
+        date=scan['suggested_date'], document_number=scan['suggested_number'], amount=scan['suggested_amount'],
+        currency=scan['suggested_currency'], vat_amount=scan['suggested_vat_amount'], document_type='invoice',
+        payment_status='unpaid', name=sample.name, content=encoded))
+    bill = dict(id=expense['id'], supplier=scan['suggested_supplier'], gross_minor=53500,
+                saved_vat_minor=3500, currency='THB', due_date='2026-12-23')
+    args = dict(company_id=c['id'], account='5299100', tax='QA VAT 7%', bills=[bill])
+    xero,_ = request('/api/journal/vendor-bills', dict(args, target='xero'))
+    row, = csv.DictReader(io.StringIO(xero.decode()))
+    assert row['ContactName'] == scan['suggested_supplier'] and row['UnitAmount'] == '500.00' and row['TaxAmount'] == '35.00'
+    odoo,_ = request('/api/journal/vendor-bills', dict(args, target='odoo'))
+    row, = csv.DictReader(io.StringIO(odoo.decode()))
+    assert row['Partner'] == scan['suggested_supplier'] and row['Invoice Lines/Unit Price'] == '500.00'
+    checks.append('Packaged image-only Thai invoice OCR, persisted VAT and both vendor-bill exports')
     contact,_=request('/api/contact',{'name':'Package QA customer'})
     data=dict(company_id=c['id'],contact_id=contact['id'],kind='sale',currency='THB',issue_date=dt.date.today().isoformat(),lines=[dict(description='Native package check — ทดสอบ',quantity='0.5',unit_price='0.01')],contact_details={'name':'Inline package customer'})
     invoice,_=request('/api/draft',data);assert invoice['total_minor']==1;assert invoice['data']['contact']['name']=='Inline package customer';checks.append('Packaged inline draft validation and half-up rounding')

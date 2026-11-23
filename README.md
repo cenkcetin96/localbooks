@@ -8,7 +8,7 @@ Created by [Cenk Cetin](https://cenkcetin.com), with links to [FGC](https://fgc.
 
 ## Download and start — no coding needed
 
-[**Download LocalBooks for Mac — no Terminal needed**](https://github.com/cenkcetin96/localbooks/releases/download/v1.3.0/LocalBooks-1.3.0-macOS-AppleSilicon.dmg)
+[**Download LocalBooks for Mac — no Terminal needed**](https://github.com/cenkcetin96/localbooks/releases/download/v1.4.0/LocalBooks-1.4.0-macOS-AppleSilicon.dmg)
 
 [Release notes and other downloads](https://github.com/cenkcetin96/localbooks/releases/latest)
 
@@ -70,11 +70,11 @@ See [the Thailand compliance plan](THAILAND_COMPLIANCE.md) for company-separated
 
 In Expense journal, choose **Upload document**, then **Detect from document** or pick the company yourself. Scanning fills the supplier, tax ID/contact details when readable, document type/number/date, currency, total and a short item description. The scanner supports English/Thai labels, full Buddhist Era dates, Thai numerals, stacked fields and side-by-side supplier/customer blocks. It uses Thai date labels, Thai month names or explicit era markers to interpret short Buddhist years. Dates such as `23/11/69` under an English label without an era need manual review. The buyer tax ID can select your company; supplier tax IDs match saved contacts. A company selected explicitly takes precedence. Ambiguous company/currency matches remain unselected for you to confirm.
 
-Review the filled form and save. Payment status remains your choice. Receipt payment date and cash amount are suggested when clear, while conflicting withholding/payment figures leave cash paid for manual confirmation. Missing required fields are listed. Existing supplier details are reused, and readable missing contact details can be filled on save. Scanning and OCR stay on this Mac; poor scans or unfamiliar layouts may still require corrections. Text PDFs use direct extraction; image PDFs and broken text layers fall back to English/Thai OCR.
+Review the filled form and save. If the printed subtotal, VAT and total reconcile, LocalBooks suggests the VAT amount. Enter or clear VAT as needed before saving. Payment status remains your choice. Receipt payment date and cash amount are suggested when clear, while conflicting withholding/payment figures leave cash paid for manual confirmation. Missing required fields are listed. Existing supplier details are reused, and readable missing contact details can be filled on save. Scanning and OCR stay on this Mac; poor scans or unfamiliar layouts may still require corrections. Text PDFs use direct extraction; image PDFs and broken text layers fall back to English/Thai OCR.
 
 ## Export vendor bills to Odoo or Xero
 
-In **Expenses & payables**, use **Export vendor bills** to select saved unpaid supplier invoices from the current page. Include the supplier invoice number and confirm the due date and printed VAT for each bill. Use the destination's exact vendor names, expense account code and purchase tax name. Group bills that share an account and tax treatment in the same file. Each bill exports as one tax-exclusive summary line. Keep documents with mixed tax treatments or several expense accounts for manual entry.
+In **Expenses & payables**, use **Export vendor bills** to select saved unpaid supplier invoices from the current page. Include the supplier invoice number and confirm the due date for each bill. LocalBooks reuses the VAT saved during invoice review. Enter the printed VAT at export if the expense has no saved amount. Use the destination's exact vendor names, expense account code and purchase tax name. Group bills that share an account and tax treatment in the same file. Each bill exports as one tax-exclusive summary line. Keep documents with mixed tax treatments or several expense accounts for manual entry.
 
 - **Odoo**. In **Accounting → Vendors → Bills**, use **Import records**. Use the vendor and tax names from the destination company and a tax configured for tax-exclusive prices. Use **Test** to check field matching, then compare the draft totals with the originals before posting. LocalBooks supplies an External ID for each bill.
 - **Xero**. In **Purchases → Bills**, use **Import from CSV** and select tax-exclusive prices. Check draft totals before approval. Import bills that share a supplier invoice number in separate files so Xero keeps them as distinct bills.

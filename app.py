@@ -79,6 +79,16 @@ def amount_minor(value, currency):
     return int((n * (10 ** places)).to_integral_value(rounding=ROUND_HALF_UP))
 
 
+def expense_vat_minor(value, currency, gross_minor):
+    if value in (None, ''):
+        return None
+    places = CURRENCIES[currency]
+    vat_minor = int(decimal(value, 'VAT amount', places) * 10 ** places)
+    if vat_minor >= gross_minor:
+        raise ValidationError('VAT must be less than the document total.')
+    return vat_minor
+
+
 def calculate(lines, currency):
     if currency not in CURRENCIES:
         raise ValidationError('Select a supported currency.')
@@ -590,7 +600,10 @@ class Store:
             details['currency']=incoming.get('currency','')
             if details['currency'] not in CURRENCIES:raise ValidationError('Select a document currency.')
             details['amount']=str(incoming.get('amount') or '').strip()
-            if details['amount']:amount_minor(details['amount'],details['currency'])
+            gross_minor = amount_minor(details['amount'] or '0', details['currency'])
+            if incoming.get('vat_amount') not in (None, ''):
+                expense_vat_minor(incoming['vat_amount'], details['currency'], gross_minor)
+                details['vat_amount'] = str(incoming['vat_amount'])
             details['document_type']=incoming.get('document_type','other')
             if details['document_type'] not in ('invoice','receipt','other'):raise ValidationError('Select a document type.')
             match=bank.get('matched_record','') if bank else 'expense:'+str(expense['id'])
@@ -690,9 +703,13 @@ class Store:
                 raise ValidationError(f'{ref}: the due date must be on or after the bill date.')
             currency = entry['currency']
             places = CURRENCIES[currency]
-            vat_minor = int(decimal(bill.get('vat'), 'Bill VAT', places) * 10 ** places)
-            if vat_minor >= entry['amount_minor']:
-                raise ValidationError(f'{ref}: VAT must be less than the bill total.')
+            vat_minor = entry.get('vat_minor')
+            if bill.get('saved_vat_minor') != vat_minor:
+                raise ValidationError('A reviewed VAT amount changed. Reopen the export and review it again.')
+            if vat_minor is None:
+                vat_minor = expense_vat_minor(bill.get('vat'), currency, entry['amount_minor'])
+                if vat_minor is None:
+                    raise ValidationError(f'{ref}: enter the printed VAT, or 0 if the bill has no VAT.')
             unit = f"{Decimal(entry['amount_minor'] - vat_minor).scaleb(-places):.{places}f}"
             vat = f"{Decimal(vat_minor).scaleb(-places):.{places}f}"
             description = ' '.join((entry.get('description') or 'Supplier bill ' + ref).split())
@@ -791,6 +808,14 @@ class Store:
             if not entry_id and self.db.execute('SELECT 1 FROM journal_attachments a JOIN journal_entries e ON e.id=a.journal_id WHERE e.company_id=? AND a.sha256=?',(company['id'],digest)).fetchone():raise ValidationError('This file is already attached to an expense. Open its documents instead of creating another expense.')
             previous=json.loads(self.db.execute('SELECT data FROM journal_entries WHERE id=?',(entry_id,)).fetchone()[0]) if entry_id else {}
             if previous.get('duplicate_of'):raise ValidationError('Edit the primary expense or restore this record as a separate expense first.')
+            if 'vat_amount' in data:
+                vat_minor = expense_vat_minor(data['vat_amount'], currency, amount)
+            elif previous.get('currency') == currency and previous.get('amount_minor') == amount:
+                vat_minor = previous.get('vat_minor')
+            else:
+                vat_minor = None
+            if vat_minor is not None:
+                details['vat_minor'] = vat_minor
             candidates=reconciliation.duplicate_candidates(self.journal(),dict(company_id=company['id'],**details,supplier_id=data.get('supplier_id'),supplier_tax_id=data.get('supplier_tax_id')),entry_id)
             if not entry_id and candidates and data.get('duplicate_confirmed') is not True:raise ValidationError('A similar expense already exists. Add this document to that expense, or confirm it is a separate expense.')
             details['separate_payment_confirmed']=data.get('separate_payment_confirmed') is True
@@ -1106,6 +1131,8 @@ class Store:
                         if supplier_id is not None and (type(supplier_id) is not int or not db.execute('SELECT 1 FROM contacts WHERE id=?',(supplier_id,)).fetchone()):raise ValidationError('Backup contains a broken supplier link.')
                         for key,limit in [('tax_id',80),('address',1200),('email',200),('phone',80),('branch',100)]:text(item.get('supplier_'+key),'Supplier '+key,limit)
                         if item.get('currency') not in CURRENCIES or type(item.get('amount_minor')) is not int or item['amount_minor']<=0 or item.get('document_type') not in ('invoice','receipt','other') or item.get('payment_status') not in ('unknown','unpaid','paid'):raise ValidationError('Backup contains an invalid journal entry.')
+                        if 'vat_minor' in item and (type(item['vat_minor']) is not int or not 0<=item['vat_minor']<item['amount_minor']):
+                            raise ValidationError('Backup contains an invalid expense VAT amount.')
                         if 'payment_date' in item or 'paid_amount_minor' in item:
                             paid_date=date(item.get('payment_date'),'Payment date')
                             if item['payment_status']!='paid' or paid_date>dt.date.today().isoformat() or type(item.get('paid_amount_minor')) is not int or not 0<=item['paid_amount_minor']<=item['amount_minor']:raise ValidationError('Backup contains invalid expense payment details.')
