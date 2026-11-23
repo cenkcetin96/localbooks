@@ -113,9 +113,8 @@ jobs:
           docker network create localbooks-fixtures
           docker run -d --name fixture-db --network localbooks-fixtures \
             -e POSTGRES_DB=postgres -e POSTGRES_USER=odoo -e POSTGRES_PASSWORD=fixture-test postgres:16
-          docker run --rm --network localbooks-fixtures odoo:19.0 \
-            odoo --db_host=fixture-db --db_user=odoo --db_password=fixture-test \
-            -d localbooks_fixtures -i account,l10n_th,base_import --without-demo=all --stop-after-init
-          docker run --rm -i --network localbooks-fixtures -v "$RUNNER_TEMP/vendor-bills:/fixtures:ro" odoo:19.0 \
-            odoo shell --db_host=fixture-db --db_user=odoo --db_password=fixture-test \
-            -d localbooks_fixtures --no-http < tests/smoke_odoo_import.py
+          docker run --rm --network localbooks-fixtures -e HOST=fixture-db -e USER=odoo -e PASSWORD=fixture-test \
+            odoo:19.0 odoo -d localbooks_fixtures -i account,l10n_th,base_import --without-demo=all --stop-after-init
+          docker run --rm -i --network localbooks-fixtures -e HOST=fixture-db -e USER=odoo -e PASSWORD=fixture-test \
+            -v "$RUNNER_TEMP/vendor-bills:/fixtures:ro" odoo:19.0 \
+            odoo shell -d localbooks_fixtures --no-http < tests/smoke_odoo_import.py
